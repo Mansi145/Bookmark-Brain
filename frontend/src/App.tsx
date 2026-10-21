@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import Layout from './components/Layout'
+import ConnectPage from './pages/ConnectPage'
 import { useMe } from './hooks/useMe'
 import FeedPage from './pages/FeedPage'
 import LoginPage from './pages/LoginPage'
@@ -26,6 +27,7 @@ export default function App() {
         <Route element={<Layout user={me.data} />}>
           <Route index element={<FeedPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="connect" element={<ConnectPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

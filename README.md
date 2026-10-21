@@ -159,9 +159,13 @@ After you change extension code, rebuild it and click the reload icon on the ext
 
 ### 5. Connect it all
 
-1. In the web app, open **Settings → Create token** and copy the token (it's shown only once).
-2. Click the extension icon, paste the token, keep the API URL as `http://localhost:8000`, and click **Save & sync now**.
-3. Your bookmarks appear in the feed. Add or remove a bookmark in the browser and refresh the feed to see it update.
+1. Click the extension icon, then **Connect this browser**. The web app opens at `/connect`.
+2. Sign in if asked, then click **Connect this browser** on that page. The extension receives its token automatically and syncs. The page shows a loader, then opens your feed when the first sync finishes.
+3. Add or remove a bookmark in the browser and refresh the feed to see it update.
+
+Manual fallback: in the web app, open **Settings → Create token** and copy the token (it's shown only once). Then in the extension choose **Advanced: paste a token**, keep the API URL as `http://localhost:8000`, and click **Save & sync now**.
+
+How one-click connect stays safe: the extension's content script runs only on the app's `/connect` page. It accepts a token only from that same page, and only together with the one-time code the popup created when you clicked Connect (valid for 15 minutes, single use). The page never chooses which API the extension talks to.
 
 The extension can only reach API addresses listed in `host_permissions` in [extension/wxt.config.ts](extension/wxt.config.ts) (`localhost:8000` and `*.onrender.com` by default).
 

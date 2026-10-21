@@ -6,6 +6,7 @@
 // catches it up. The API treats repeated data as a no-op, so over-syncing is safe.
 
 import { browser } from 'wxt/browser'
+import type { SyncResult } from '../lib/connect'
 import { collectBookmarkIds, fullSync, getSettings, incrementalSync, itemForNode } from '../lib/sync'
 
 const PERIODIC_ALARM = 'periodic-full-sync'
@@ -20,6 +21,15 @@ export default defineBackground(() => {
 
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === PERIODIC_ALARM || alarm.name === RETRY_ALARM) void safeFullSync()
+  })
+
+  // The connect content script asks for a sync as soon as a token is saved, and waits
+  // for the answer so the web page can show the feed once it's done.
+  // `return true` tells the browser we'll call sendResponse later (after the await).
+  browser.runtime.onMessage.addListener((message: { type?: string }, _sender, sendResponse) => {
+    if (message?.type !== 'sync-now') return
+    void syncAndReport().then(sendResponse)
+    return true
   })
 
   browser.bookmarks.onCreated.addListener((id) => void pushNode(id))
@@ -48,5 +58,15 @@ async function push(send: () => Promise<void>) {
 }
 
 async function safeFullSync() {
-  await push(fullSync)
+  await push(async () => void (await fullSync()))
+}
+
+/** Like safeFullSync, but reports the outcome instead of hiding it. */
+async function syncAndReport(): Promise<SyncResult> {
+  try {
+    return { ok: true, count: await fullSync() }
+  } catch (err) {
+    browser.alarms.create(RETRY_ALARM, { delayInMinutes: 5 })
+    return { ok: false, error: String(err instanceof Error ? err.message : err) }
+  }
 }

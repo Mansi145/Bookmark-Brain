@@ -50,8 +50,11 @@ After code changes, rebuild and click the reload icon on the extension card.
 Edge: same steps at `edge://extensions`. Firefox: `about:debugging` → Load Temporary Add-on → pick
 `.output/firefox-mv2/manifest.json`.
 
-Then create a token on the web app's Settings page and paste it into the extension popup.
-The API URL must match one of `host_permissions` in `wxt.config.ts`.
+Then click the extension's **Connect this browser** (opens `/connect` in the web app, which hands the
+token to the content script). Manual fallback: create a token in Settings and use *Advanced: paste a token*.
+The API URL must match one of `host_permissions` in `wxt.config.ts`; the connect content script only
+matches `http://localhost:5173/connect*`. For a deployed app add its `/connect` URL to `matches` in
+`entrypoints/connect.content.ts` and build with `WXT_APP_URL` / `WXT_API_URL` set.
 
 ## Backend env vars (`backend/.env`)
 | Var | Purpose |

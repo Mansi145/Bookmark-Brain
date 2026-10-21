@@ -16,7 +16,9 @@ type SyncItem = {
   added_at: string
 }
 
-export const DEFAULT_API_URL = 'http://localhost:8000'
+// Build-time overrides: set WXT_API_URL / WXT_APP_URL in extension/.env for a deployed build.
+export const DEFAULT_API_URL: string = import.meta.env.WXT_API_URL || 'http://localhost:8000'
+export const APP_URL: string = import.meta.env.WXT_APP_URL || 'http://localhost:5173'
 
 // --- Stored state -----------------------------------------------------------
 
@@ -47,7 +49,7 @@ async function getSourceId(): Promise<string> {
   return id
 }
 
-function detectBrowser(): string {
+export function detectBrowser(): string {
   if (import.meta.env.FIREFOX) return 'firefox'
   const nav = navigator as Navigator & {
     brave?: unknown
@@ -122,12 +124,16 @@ async function post(body: object): Promise<{ active_bookmarks: number }> {
   return res.json()
 }
 
-/** Send the whole bookmark tree. Anything the server has that isn't in it gets removed. */
-export async function fullSync(): Promise<void> {
+/**
+ * Send the whole bookmark tree. Anything the server has that isn't in it gets removed.
+ * Returns how many bookmarks the account now has.
+ */
+export async function fullSync(): Promise<number> {
   try {
     const items = flatten(await browser.bookmarks.getTree())
     const result = await post({ full: true, upserts: items })
     await setStatus(true, `Synced ${result.active_bookmarks} bookmarks`)
+    return result.active_bookmarks
   } catch (err) {
     await setStatus(false, String(err instanceof Error ? err.message : err))
     throw err

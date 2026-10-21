@@ -32,7 +32,8 @@ Frontend (vercel.app) and API (onrender.com) are on different sites:
 GitHub Actions cron (`.github/workflows/cron.yml`) calls `POST /internal/digest` and `POST /internal/link-check` with header `X-Cron-Secret: $INTERNAL_CRON_SECRET`.
 
 ## Extension
-- `npm run build` / `npm run zip` in `extension/`, then set `API_URL` to the Render URL.
+- Build with `WXT_API_URL=https://<api>.onrender.com WXT_APP_URL=https://<app>.vercel.app npm run zip`, and add
+  `https://<app>.vercel.app/connect*` to `matches` in `extension/entrypoints/connect.content.ts` first.
 - Chrome Web Store as **unlisted** (one-time $5 developer fee), or share the zip for "Load unpacked".
 - Firefox: `npm run zip:firefox` → addons.mozilla.org (free).
 
