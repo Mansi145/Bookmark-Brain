@@ -1,31 +1,34 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiGet } from './api/client'
-
-type DbHealth = { status: string; pgvector: string }
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import Layout from './components/Layout'
+import { useMe } from './hooks/useMe'
+import FeedPage from './pages/FeedPage'
+import LoginPage from './pages/LoginPage'
+import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
-  const health = useQuery({
-    queryKey: ['health', 'db'],
-    queryFn: () => apiGet<DbHealth>('/health/db'),
-  })
+  const me = useMe()
+
+  if (me.isPending) {
+    return <div className="flex min-h-screen items-center justify-center text-stone-500">Loading…</div>
+  }
+  if (me.isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-red-600">
+        Can't reach the API: {me.error.message}
+      </div>
+    )
+  }
+  if (!me.data) return <LoginPage />
 
   return (
-    <main className="mx-auto max-w-2xl p-8 font-sans">
-      <h1 className="text-3xl font-bold">Bookmark Brain</h1>
-      <p className="mt-2 text-gray-600">Your bookmarks, read and remembered.</p>
-
-      <section className="mt-8 rounded-lg border p-4">
-        <h2 className="font-semibold">Backend status</h2>
-        {health.isPending && <p className="text-gray-500">Checking…</p>}
-        {health.isError && (
-          <p className="text-red-600">Can't reach the API: {health.error.message}</p>
-        )}
-        {health.isSuccess && (
-          <p className="text-green-700">
-            API {health.data.status} · pgvector {health.data.pgvector}
-          </p>
-        )}
-      </section>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout user={me.data} />}>
+          <Route index element={<FeedPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
