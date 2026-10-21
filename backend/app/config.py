@@ -15,9 +15,16 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://bb:bb@localhost:5432/bookmark_brain"
     frontend_origin: str = "http://localhost:5173"
 
-    # Filled in from Phase 1 onwards; empty defaults keep Phase 0 bootable.
+    # Auth (Phase 1)
     jwt_secret: str = ""
     google_client_id: str = ""
+    session_days: int = 30
+    # Local dev: frontend and API are both on localhost, so Lax + non-secure works.
+    # Production (vercel.app -> onrender.com is cross-site): set Secure=true, SameSite=none.
+    session_cookie_secure: bool = False
+    session_cookie_samesite: str = "lax"
+
+    # Filled in from later phases.
     google_api_key: str = ""
     groq_api_key: str = ""
     internal_cron_secret: str = ""

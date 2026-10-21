@@ -24,7 +24,9 @@ uv run alembic upgrade head
 uv run fastapi dev app/main.py   # http://localhost:8000, docs at /docs
 uv run pytest                    # tests (no real LLM calls)
 ```
-The job worker starts automatically inside the FastAPI lifespan.
+Tests use a separate `bookmark_brain_test` database in the same container (created
+automatically by `tests/conftest.py`, wiped between tests). The DB container must be running.
+(From Phase 2, the background job worker will start inside the FastAPI lifespan.)
 
 ## 3. Frontend
 ```bash
@@ -37,10 +39,19 @@ npm run dev                      # http://localhost:5173
 ```bash
 cd extension
 npm install
-npm run dev                      # WXT opens a Chrome profile with the extension loaded
-npm run dev:firefox              # Firefox build
+npm run build                    # -> .output/chrome-mv3/
+npm run build:firefox            # -> .output/firefox-mv2/
+npm run compile                  # type-check only
 ```
-Paste a PAT from the web app's Settings page into the extension popup.
+**On WSL** (Chrome runs on Windows): `wxt dev` can't launch Windows Chrome, so build and
+load it unpacked: `chrome://extensions` → Developer mode → Load unpacked →
+`\\wsl$\Ubuntu\home\mansi\personal_projects\bookmark_brain\extension\.output\chrome-mv3`.
+After code changes, rebuild and click the reload icon on the extension card.
+Edge: same steps at `edge://extensions`. Firefox: `about:debugging` → Load Temporary Add-on → pick
+`.output/firefox-mv2/manifest.json`.
+
+Then create a token on the web app's Settings page and paste it into the extension popup.
+The API URL must match one of `host_permissions` in `wxt.config.ts`.
 
 ## Backend env vars (`backend/.env`)
 | Var | Purpose |
@@ -55,4 +66,4 @@ Paste a PAT from the web app's Settings page into the extension popup.
 | `INTERNAL_CRON_SECRET` | protects `/internal/*` endpoints |
 | `AI_DAILY_LIMIT_PER_USER` | quota guard |
 
-Frontend: `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`.
+Frontend (`frontend/.env.local`): `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID` (same OAuth client id as the backend).
