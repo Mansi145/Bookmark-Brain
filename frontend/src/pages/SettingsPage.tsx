@@ -33,10 +33,13 @@ export default function SettingsPage() {
         <h2 className="font-semibold">Connect a browser</h2>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-stone-600">
           <li>Install the Bookmark Brain extension in each browser you use.</li>
-          <li>Create a token below (one per browser makes it easy to revoke later).</li>
           <li>
-            Open the extension, paste the token, and set the API URL to{' '}
-            <code className="rounded bg-stone-100 px-1">{API_URL}</code>.
+            Click the extension's icon, then <strong>Connect this browser</strong>. It opens this app and connects in
+            one click.
+          </li>
+          <li>
+            Or connect by hand: create a token below, then in the extension choose <em>Advanced: paste a token</em>{' '}
+            and use the API URL <code className="rounded bg-stone-100 px-1">{API_URL}</code>.
           </li>
         </ol>
 

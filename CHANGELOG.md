@@ -5,6 +5,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### One-click extension connect
+
+#### Added
+- **Extension popup:** a **Connect this browser** button opens the web app's `/connect` page with a one-time code (nonce) and the browser name. The manual token form moved under *Advanced: paste a token*. The popup shows *Sync now* and *Reconnect* once connected.
+- **Content script** (`entrypoints/connect.content.ts`): runs only on `http://localhost:5173/connect*`.
+  - Accepts a `bb_pat_` token posted by that same page (same window, same origin) only when it carries the pending nonce.
+  - The nonce is valid for 15 minutes and single use.
+  - Saves the token, replies to the page, asks the background worker for a sync and reports the result (bookmark count or error) back to the page.
+- **Web app `/connect` page:** detects the extension, creates a token named after the browser, and hands it over with `window.postMessage`. Shows a loader while the first sync runs, then opens the feed in the same tab. Otherwise it shows the sync error, an expired-link message, or the token as a manual fallback if the extension doesn't answer.
+- **Extension icon:** the Bookmark Brain logo (brain on a bookmark, Mulberry aura) at 16/32/48/128 px. Sources are in `extension/assets/icon/` (a simplified version for 16/32 px); `npm run icons` regenerates the PNGs in `public/icon/`.
+- **Build-time URLs:** `WXT_API_URL` / `WXT_APP_URL` set the extension's default API and web app origins (default `localhost:8000` / `localhost:5173`).
+
+#### Changed
+- Background worker answers a `sync-now` message once the full sync finishes (`fullSync` now returns the bookmark count).
+- Settings page and README describe the one-click flow, with manual tokens as the fallback.
+
 ### Phase 1: Auth, extension sync and feed
 
 #### Added

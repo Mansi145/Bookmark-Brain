@@ -67,3 +67,27 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
 }
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button.secondary {
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--border);
+}
+
+details {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
