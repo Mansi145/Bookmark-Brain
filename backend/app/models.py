@@ -66,11 +66,11 @@ class ApiToken(TimestampMixin, Base):
 
 
 class DocumentStatus(enum.StrEnum):
-    pending = "pending"  # known URL, not fetched yet (fetching arrives in Phase 2)
-    fetched = "fetched"
+    pending = "pending"  # known URL, a fetch_page job is queued
+    fetched = "fetched"  # article text extracted
     summarised = "summarised"
-    failed = "failed"
-    dead = "dead"
+    failed = "failed"  # couldn't get readable text (not HTML, blocked, gave up retrying)
+    dead = "dead"  # the page is gone (404 / 410)
 
 
 class Document(TimestampMixin, Base):
@@ -85,11 +85,32 @@ class Document(TimestampMixin, Base):
         Enum(DocumentStatus, name="document_status"), default=DocumentStatus.pending
     )
 
+    # Filled in by the fetch_page job (app/worker.py).
+    title: Mapped[str | None] = mapped_column(Text)  # the page's own title
+    description: Mapped[str | None] = mapped_column(Text)  # <meta name="description">
+    content_text: Mapped[str | None] = mapped_column(Text)  # main article text, no nav/ads
+    word_count: Mapped[int | None] = mapped_column(Integer)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Where content_text came from: "page" (the live page) or "archive" (a Wayback Machine
+    # copy of a dead link, looked up when a user asks). Null = no text.
+    content_source: Mapped[str | None] = mapped_column(String(16))
+    # Wayback Machine lookup for dead links, only when a user clicks "Find archived copy":
+    # null (never asked) | "checking" | "found" | "none" (no copy) | "failed" (unreachable).
+    archive_status: Mapped[str | None] = mapped_column(String(16))
+    archive_url: Mapped[str | None] = mapped_column(Text)  # the snapshot, for people to open
+    archived_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Why we can't read it anonymously: "login" (sign-in page / logged-in app) or
+    # "paywall" (subscribers only). Null = open. See app/services/access.py.
+    access: Mapped[str | None] = mapped_column(String(16))
+    # The site's logo (favicon), as declared by the page or the usual /favicon.ico guess.
+    # The browser loads it straight from the site; we don't store images.
+    icon_url: Mapped[str | None] = mapped_column(Text)
+
 
 class ReadState(enum.StrEnum):
     unread = "unread"
     read = "read"
-    archived = "archived"
 
 
 class Bookmark(TimestampMixin, Base):

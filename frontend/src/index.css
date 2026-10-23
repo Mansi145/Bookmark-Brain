@@ -1,1 +1,105 @@
 @import "tailwindcss";
+
+/* Design tokens from the ui-design skill. Tailwind turns each --color-* into utilities
+   (bg-surface, text-ink2, border-line, ...), so pages never hard-code hex values. */
+@theme {
+  /* No pure-white pages (owner): page bg → panels behind the filters and the feed → a card per
+     article. */
+  --color-bg: #eceae7;
+  --color-panel: #f5f4f2;
+  --color-surface: #fbfaf8;
+  --color-line: #e2dfda;
+  --color-ink: #141516;
+  --color-ink2: #2f3134;
+  --color-muted: #45484b;
+  --color-on-ink: #ffffff;
+  /* Accent rule (owner): only the dark Nude colours, with white text on them, in both themes. */
+  --color-accent: #503931;
+  --color-accent2: #564d3a;
+  --color-on-accent: #ffffff;
+  --color-on-accent2: #efe8e2;
+  --color-skeleton: #e7e4df;
+  --color-dead-bg: #f8e3e3;
+  --color-dead-fg: #7c1d1d;
+
+  /* On the nebula texture (both themes). */
+  --color-on-texture: #ffffff;
+  --color-on-texture2: #efe8e2;
+
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-serif: "Aleo", Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* Progress bar with no known end (first sync, server waking up): a segment sliding across. */
+  --animate-slide: slide 1.6s ease-in-out infinite;
+  @keyframes slide {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+}
+
+/* Dark theme: follows the system setting until the top-bar toggle is pressed, which stores the
+   choice and sets <html data-theme="light|dark"> (see useTheme). The token list is repeated
+   because CSS can't share one block between a media query and an attribute selector. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #141517;
+    --color-panel: #1b1c1f;
+    --color-surface: #232427;
+    --color-line: #34363b;
+    --color-ink: #f2f2f4;
+    --color-ink2: #c9cbd1;
+    --color-muted: #a8abb2;
+    --color-on-ink: #17181a;
+    --color-skeleton: #2b2d31;
+    --color-dead-bg: #3d2224;
+    --color-dead-fg: #f5b5b5;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #141517;
+  --color-panel: #1b1c1f;
+  --color-surface: #232427;
+  --color-line: #34363b;
+  --color-ink: #f2f2f4;
+  --color-ink2: #c9cbd1;
+  --color-muted: #a8abb2;
+  --color-on-ink: #17181a;
+  --color-skeleton: #2b2d31;
+  --color-dead-bg: #3d2224;
+  --color-dead-fg: #f5b5b5;
+}
+
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+:where(a, button, input, select, summary):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* Group header bands in the feed. */
+.bg-band {
+  background: linear-gradient(90deg, #503931, #564d3a);
+}

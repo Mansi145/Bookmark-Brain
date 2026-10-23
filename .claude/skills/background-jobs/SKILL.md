@@ -28,8 +28,14 @@ The queue lives in Postgres (no Redis/Celery), so jobs survive restarts and need
 
 Statuses: `queued → running → done`, or `→ queued` (retry) `→ … → failed`.
 
+## Existing job kinds
+| Kind | Queued by | Does |
+|---|---|---|
+| `fetch_page` | `services/sync.py` for each new document; migration `0004` backfill | live page (safe fetcher) → `services/extract.py` (trafilatura) → `fetched`; private address → `failed`; needs sign-in (`services/access.py`) → `failed` + `access`, never sent to archive.org; 404/410 → `dead`; anything else → `failed`. Also stores the site logo (`services/icons.py`). Never contacts archive.org |
+| `find_archive` | `POST /api/bookmarks/{id}/find-archive` (the user clicked "Find archived copy" on a dead link) | latest Wayback Machine snapshot via `services/archive.py` (throttled, private-looking URLs skipped) → `archive_status` found / none / failed (archive.org busy: reported, not retried, so the user can try again) |
+
 ## Adding a job kind
-1. Write the handler in `worker.py` (or a module it imports):
+1. Write the handler in `worker.py` (or a module it imports; `fetch_page` is the reference example):
    ```python
    async def fetch_page(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
        document = await session.get(Document, job.payload["document_id"])
@@ -40,7 +46,11 @@ Statuses: `queued → running → done`, or `→ queued` (retry) `→ … → fa
    - The payload is small JSON with ids (`{"document_id": 7}`), never whole objects. Load fresh state.
    - **Idempotent**: a job can run twice (stale takeover, retry after a partial failure). Check
      whether the work is already done (e.g. the summary exists) and overwrite, don't append.
-   - **Raise to retry** (timeouts, 5xx, 429 rate limits). For permanent problems (404, blocked URL,
+   - **Raise to retry** (timeouts, 5xx). For "the other side is busy, nothing is wrong" (a 429
+     from a free service), `raise RetryLater(seconds)`: the job is rescheduled without using up an
+     attempt, so the handler must give up on its own eventually (e.g. compare `job.created_at`).
+   - Slow or rate-limited third parties get **their own job kind** (like `find_archive`), so their
+     retries don't redo the earlier work. For permanent problems (404, blocked URL,
      unparseable page) record the outcome on the document and return normally, so it isn't retried.
    - If the user needs to see "it gave up", write that state on the last attempt
      (`job.attempts >= MAX_ATTEMPTS`) before raising, or mark the document `failed`.

@@ -4,33 +4,90 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bookmark Brain</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Aleo:wght@700&family=Geist:wght@400;500;600&display=swap"
+    />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <h1>Bookmark Brain</h1>
+    <!-- Design board Popup.dc.html. The header strip is on the dark Nude texture with white text,
+         in both themes. -->
+    <header class="strip">
+      <div class="nebula" aria-hidden="true">
+        <span style="left: 0%; top: 0%; width: 30%; height: 100%; background: #48332c; opacity: 0.85"></span>
+        <span style="left: 20%; top: 10%; width: 22%; height: 90%; background: #624d46; opacity: 0.7"></span>
+        <span style="left: 36%; top: 20%; width: 26%; height: 90%; background: #534336; opacity: 0.85"></span>
+        <span style="left: 52%; top: -10%; width: 18%; height: 80%; background: #ffffff; opacity: 0.06"></span>
+        <span style="left: 60%; top: 15%; width: 26%; height: 95%; background: #564d3a; opacity: 0.95"></span>
+        <span style="left: 76%; top: 5%; width: 30%; height: 100%; background: #4c4433; opacity: 0.8"></span>
+      </div>
+      <svg class="grain" aria-hidden="true" width="100%" height="100%">
+        <filter id="popup-grain" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="11" stitchTiles="stitch" />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#popup-grain)" />
+      </svg>
+      <div class="brand">
+        <!-- logo-small.svg -->
+        <svg width="30" height="32" viewBox="8 30 184 194" fill="none" stroke="#141516" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <defs>
+            <radialGradient id="popup-aura" gradientUnits="userSpaceOnUse" cx="100" cy="76" r="150" fx="100" fy="70">
+              <stop offset="0" stop-color="#955E7D" />
+              <stop offset="0.45" stop-color="#CA8FB9" />
+              <stop offset="1" stop-color="#FFC0F5" />
+            </radialGradient>
+          </defs>
+          <path fill="url(#popup-aura)" d="M60 112 C46 110 42 94 50 86 C40 78 44 60 58 58 C58 44 74 38 86 44 C92 34 108 34 114 44 C126 38 142 44 142 58 C156 60 160 78 150 86 C158 94 154 110 140 112 C128 118 112 116 100 112 C88 116 72 118 60 112 Z" />
+          <line x1="84" y1="82" x2="84" y2="94" stroke-width="13" />
+          <line x1="116" y1="82" x2="116" y2="94" stroke-width="13" />
+          <path fill="url(#popup-aura)" d="M62 126 H138 Q150 126 150 138 V210 Q150 220 141 215 L100 190 L59 215 Q50 220 50 210 V138 Q50 126 62 126 Z" />
+        </svg>
+        <h1>Bookmark Brain</h1>
+      </div>
+    </header>
 
-    <p id="status" class="status"></p>
+    <main>
+      <!-- data-state: not-connected | connected | syncing | error (set by main.ts) -->
+      <div id="card" class="card" role="status" data-state="not-connected">
+        <div class="card-heading">
+          <svg class="icon icon-plug" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></svg>
+          <svg class="icon icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7" /></svg>
+          <svg class="icon icon-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9" /></svg>
+          <svg class="icon icon-alert" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5" /><path d="M12 16.5h.01" /></svg>
+          <span id="card-title"></span>
+        </div>
+        <p id="status"></p>
+      </div>
 
-    <div class="actions">
-      <button id="connect" type="button">Connect this browser</button>
-      <button id="sync" type="button" class="secondary" hidden>Sync now</button>
-    </div>
+      <div class="actions">
+        <button id="connect" type="button" class="primary">Connect this browser</button>
+        <button id="sync" type="button" class="primary" hidden>Sync now</button>
+        <button id="open-feed" type="button" class="outline" hidden>Open feed</button>
+      </div>
 
-    <details>
-      <summary>Advanced: paste a token</summary>
-      <form id="settings">
-        <label>
-          API URL
-          <input id="apiUrl" type="url" required />
-        </label>
-        <label>
-          Access token
-          <input id="token" type="password" placeholder="bb_pat_…" required autocomplete="off" />
-        </label>
-        <button type="submit" class="secondary">Save &amp; sync now</button>
-      </form>
-      <p class="hint">Create a token on the Settings page of the Bookmark Brain web app.</p>
-    </details>
+      <details>
+        <summary>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          Advanced: paste a token
+        </summary>
+        <form id="settings">
+          <label>
+            API URL
+            <input id="apiUrl" type="url" required />
+          </label>
+          <label>
+            Access token
+            <input id="token" type="password" placeholder="bb_pat_…" required autocomplete="off" />
+          </label>
+          <button type="submit" class="outline">Save &amp; sync now</button>
+        </form>
+      </details>
+
+      <p class="footnote">Manage connected browsers in <a id="settings-link" href="#">Settings</a>.</p>
+    </main>
 
     <script type="module" src="./main.ts"></script>
   </body>

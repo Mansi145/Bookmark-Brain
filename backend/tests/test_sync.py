@@ -1,3 +1,10 @@
+import asyncio
+
+from sqlalchemy import update
+
+from app.models import Bookmark, ReadState
+from tests.conftest import TestSession
+
 CHROME = {"id": "chrome-install-1", "browser": "chrome"}
 EDGE = {"id": "edge-install-1", "browser": "edge"}
 
@@ -163,3 +170,23 @@ def test_sync_with_extension_token(client, anon_client):
 def test_sync_requires_auth(anon_client):
     response = anon_client.post("/api/sync", json={"source": CHROME, "upserts": []})
     assert response.status_code == 401
+
+
+def test_feed_filters_by_reading_state(client):
+    sync(client, CHROME, [item("1", "https://a.com/x"), item("2", "https://b.com/y")], full=True)
+
+    async def mark_read():
+        async with TestSession() as session:
+            await session.execute(
+                update(Bookmark)
+                .where(Bookmark.title == "https://a.com/x")
+                .values(read_state=ReadState.read)
+            )
+            await session.commit()
+
+    asyncio.run(mark_read())
+    assert [b["url"] for b in feed(client, read_state="read")["items"]] == ["https://a.com/x"]
+    assert [b["url"] for b in feed(client, read_state="unread")["items"]] == ["https://b.com/y"]
+    assert len(feed(client)["items"]) == 2
+    counts = client.get("/api/bookmarks/facets").json()["read_states"]
+    assert counts == {"unread": 1, "read": 1}

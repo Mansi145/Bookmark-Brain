@@ -1,8 +1,18 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { api } from '../api/client'
-import type { CreatedApiToken } from '../api/types'
+import type { CreatedApiToken, Facets } from '../api/types'
+import SignInButtons from '../components/SignInButtons'
+import StatePage, { SlidingBar, StateText } from '../components/StatePage'
+import { ICONS, stateAction } from '../components/statePageParts'
+
+// Opened by the extension's "Connect this browser" button (design board ConnectStates): it
+// connects on its own, waits for the first sync, then opens the feed.
+//
+// How the token reaches the extension: the page creates it and hands it to the extension's
+// content script with window.postMessage (same page, same origin only). The extension checks
+// the nonce it put in the URL, so a stale or copied link is rejected.
 
 // Must match extension/lib/connect.ts (MSG).
 const MSG = {
@@ -14,52 +24,105 @@ const MSG = {
   synced: 'bookmark-brain:synced',
 } as const
 
-// 'syncing': the extension has the token and is uploading bookmarks; we wait for MSG.synced.
-type Status = 'idle' | 'connecting' | 'syncing' | 'sync-failed' | 'rejected' | 'no-reply' | 'error'
+// How long to wait for the extension to say hello, then to accept the token.
+const FIND_EXTENSION_MS = 3000
+const ACCEPT_TOKEN_MS = 4000
+// "Connected" shows for a moment before the feed opens.
+const OPEN_FEED_MS = 1500
 
-const browserLabel = (b: string | null) =>
-  b ? b.charAt(0).toUpperCase() + b.slice(1) : 'This browser'
+type Status = 'connecting' | 'syncing' | 'done' | 'sync-failed' | 'expired' | 'no-reply' | 'error'
 
-/**
- * Opened by the extension's "Connect" button. Creates a token and hands it to the
- * extension's content script with window.postMessage (same page, same origin only).
- */
+/** "Chrome" / "this browser", from ?browser= in the link the extension opened. */
+function browserNames(param: string | null) {
+  if (!param) return { name: 'this browser', Name: 'This browser' }
+  const Name = param.charAt(0).toUpperCase() + param.slice(1)
+  return { name: Name, Name }
+}
+
 export default function ConnectPage() {
   const [params] = useSearchParams()
   const nonce = params.get('nonce')
-  const browserName = browserLabel(params.get('browser'))
+  const browser = params.get('browser')
+  const { name, Name } = browserNames(browser)
 
-  const [extensionReady, setExtensionReady] = useState(false)
-  const [status, setStatus] = useState<Status>('idle')
+  const [status, setStatus] = useState<Status>('connecting')
   const [fallbackToken, setFallbackToken] = useState<string | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const started = useRef(false)
+  const tokenId = useRef<number | null>(null)
   const timeout = useRef<number | undefined>(undefined)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
+  // While the first sync runs, count what has arrived so far (polls the feed's counts).
+  const counts = useQuery({
+    queryKey: ['facets', 'main'],
+    queryFn: () => api.get<Facets>('/api/bookmarks/facets?section=main'),
+    enabled: status === 'syncing',
+    refetchInterval: status === 'syncing' ? 1500 : false,
+  })
+  const found = browser
+    ? counts.data?.browsers.find((b) => b.value === browser)?.count
+    : counts.data?.total
+
+  async function connect(extensionFound: boolean) {
+    setStatus('connecting')
+    try {
+      const created = await api.post<CreatedApiToken>('/api/tokens', { name: `${Name} extension` })
+      tokenId.current = created.id
+      if (!extensionFound) {
+        setFallbackToken(created.token)
+        setStatus('no-reply')
+        return
+      }
+      window.postMessage({ type: MSG.connect, token: created.token, nonce }, window.location.origin)
+      // No answer from the extension: show the token so it can still be pasted by hand.
+      timeout.current = window.setTimeout(() => {
+        setFallbackToken(created.token)
+        setStatus('no-reply')
+      }, ACCEPT_TOKEN_MS)
+    } catch {
+      setStatus('error')
+    }
+  }
+
   useEffect(() => {
+    if (!nonce) return
+    // Connect once, as soon as we know whether the extension is here. (The ref also stops
+    // React's development double-run from creating two tokens.)
+    const begin = (extensionFound: boolean) => {
+      if (started.current) return
+      started.current = true
+      void connect(extensionFound)
+    }
+    const notFound = window.setTimeout(() => begin(false), FIND_EXTENSION_MS)
+
     const onMessage = (event: MessageEvent) => {
       if (event.source !== window || event.origin !== window.location.origin) return
       const type = event.data?.type
-      if (type === MSG.ready) setExtensionReady(true)
-      if (type === MSG.connected && event.data.nonce === nonce) {
+      if (type === MSG.ready) begin(true)
+      if (event.data?.nonce !== nonce) return
+      if (type === MSG.connected) {
         window.clearTimeout(timeout.current)
         setStatus('syncing')
       }
-      if (type === MSG.synced && event.data.nonce === nonce) {
+      if (type === MSG.rejected) {
+        window.clearTimeout(timeout.current)
+        // The extension refused this link, so nobody will use the token we just made.
+        if (tokenId.current !== null) void api.delete(`/api/tokens/${tokenId.current}`).catch(() => {})
+        setStatus('expired')
+      }
+      if (type === MSG.synced) {
         if (event.data.ok) {
-          // Drop any cached (empty) feed so it's fetched fresh, then show it in this tab.
+          // Drop any cached (empty) feed so it's fetched fresh, then open it in this tab.
           void queryClient.invalidateQueries({ queryKey: ['bookmarks'] })
           void queryClient.invalidateQueries({ queryKey: ['facets'] })
-          navigate('/', { replace: true })
+          setStatus('done')
+          timeout.current = window.setTimeout(() => navigate('/', { replace: true }), OPEN_FEED_MS)
         } else {
           setSyncError(String(event.data.error ?? 'Unknown error'))
           setStatus('sync-failed')
         }
-      }
-      if (type === MSG.rejected && event.data.nonce === nonce) {
-        window.clearTimeout(timeout.current)
-        setStatus('rejected')
       }
     }
     window.addEventListener('message', onMessage)
@@ -67,101 +130,111 @@ export default function ConnectPage() {
     window.postMessage({ type: MSG.ping }, window.location.origin)
     return () => {
       window.removeEventListener('message', onMessage)
+      window.clearTimeout(notFound)
       window.clearTimeout(timeout.current)
     }
+    // connect() only uses refs and stable setters, so it doesn't need to be a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce, navigate, queryClient])
 
-  async function connect() {
-    setStatus('connecting')
-    try {
-      const created = await api.post<CreatedApiToken>('/api/tokens', { name: `${browserName} extension` })
-      window.postMessage({ type: MSG.connect, token: created.token, nonce }, window.location.origin)
-      // No answer from the extension: show the token so it can still be pasted by hand.
-      timeout.current = window.setTimeout(() => {
-        setFallbackToken(created.token)
-        setStatus('no-reply')
-      }, 4000)
-    } catch {
-      setStatus('error')
-    }
+  if (!nonce) {
+    return (
+      <StatePage icon={ICONS.link} title="Connect from the extension">
+        <StateText>
+          Click the Bookmark Brain extension's icon, then <strong className="font-semibold text-ink">Connect this browser</strong>.
+          It opens this page and connects in a few seconds.
+        </StateText>
+        <Link to="/settings" className={stateAction}>
+          Connect by hand
+        </Link>
+      </StatePage>
+    )
   }
 
-  return (
-    <main className="mx-auto max-w-lg px-4 py-16">
-      <div className="rounded-2xl border border-stone-200 bg-white p-8">
-        <h1 className="text-2xl font-bold">Connect {browserName}</h1>
-
-        {!nonce && (
-          <p className="mt-3 text-sm text-stone-600">
-            Open this page from the Bookmark Brain extension: click its icon, then <strong>Connect this browser</strong>.
-          </p>
-        )}
-
-        {nonce && status === 'idle' && (
-          <>
-            <p className="mt-3 text-stone-600">
-              The extension will sync this browser's bookmarks to your account. You can disconnect it any time from
-              Settings.
-            </p>
-            {!extensionReady && (
-              <p className="mt-3 text-sm text-amber-700">Looking for the extension in this browser…</p>
-            )}
+  switch (status) {
+    case 'connecting':
+      return (
+        <StatePage icon={ICONS.spinner} title={`Connecting ${name}…`}>
+          <StateText>Keep this tab open. It only takes a few seconds.</StateText>
+        </StatePage>
+      )
+    case 'syncing':
+      return (
+        <StatePage icon={ICONS.sync} title="Syncing your bookmarks">
+          <StateText>
+            {found ? `${found} ${found === 1 ? 'bookmark' : 'bookmarks'} found so far. ` : ''}
+            Your feed opens as soon as this finishes.
+          </StateText>
+          <SlidingBar />
+        </StatePage>
+      )
+    case 'done':
+      return (
+        <StatePage icon={ICONS.check} title={`${Name} is connected`}>
+          <StateText>Opening your feed…</StateText>
+          <Link to="/" replace className={stateAction}>
+            Open feed now
+          </Link>
+        </StatePage>
+      )
+    case 'no-reply':
+      return (
+        <StatePage icon={ICONS.key} title="Connect by hand">
+          <StateText>
+            The extension didn't reply. Copy this token and paste it into the extension under{' '}
+            <em>Advanced: paste a token</em>. It's only shown once.
+          </StateText>
+          <div className="flex flex-wrap gap-2">
+            <code className="min-w-0 flex-[1_1_200px] rounded-lg border border-line bg-panel px-3 py-2.5 font-mono text-[13px] break-all">
+              {fallbackToken}
+            </code>
             <button
-              onClick={connect}
-              className="mt-6 w-full rounded-lg bg-stone-900 px-4 py-3 font-medium text-white disabled:opacity-50"
+              type="button"
+              onClick={() => fallbackToken && navigator.clipboard.writeText(fallbackToken)}
+              className="h-11 cursor-pointer rounded-lg border-0 bg-ink px-4 font-semibold text-on-ink"
             >
-              Connect this browser
+              Copy
             </button>
-          </>
-        )}
-
-        {status === 'connecting' && <p className="mt-4 text-stone-600">Connecting…</p>}
-
-        {status === 'syncing' && (
-          <div role="status" className="mt-6 flex items-center gap-3 text-stone-700">
-            <span
-              aria-hidden
-              className="size-5 animate-spin rounded-full border-2 border-stone-300 border-t-stone-900"
-            />
-            <span>Connected. Syncing your bookmarks…</span>
           </div>
-        )}
+        </StatePage>
+      )
+    case 'expired':
+      return (
+        <StatePage icon={ICONS.clock} title="This link has expired">
+          <StateText>Connect links last 15 minutes. Open the extension and click Connect this browser again.</StateText>
+        </StatePage>
+      )
+    case 'sync-failed':
+      return (
+        <StatePage icon={ICONS.alert} title="Connected, but the first sync failed">
+          <StateText>
+            {syncError} The extension will try again in a few minutes, or you can click <em>Sync now</em> in its popup.
+          </StateText>
+          <Link to="/" replace className={stateAction}>
+            Go to your feed
+          </Link>
+        </StatePage>
+      )
+    case 'error':
+      return (
+        <StatePage icon={ICONS.alert} title="Something went wrong">
+          <StateText>We couldn't connect {name}. Your bookmarks are safe.</StateText>
+          <button type="button" onClick={() => void connect(true)} className={stateAction}>
+            Try again
+          </button>
+        </StatePage>
+      )
+  }
+}
 
-        {status === 'sync-failed' && (
-          <div role="alert" className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-medium">Connected, but the first sync failed.</p>
-            <p className="mt-1">{syncError}</p>
-            <p className="mt-1">
-              The extension will retry in a few minutes, or you can click <em>Sync now</em> in its popup.{' '}
-              <Link to="/" className="underline">
-                Go to your feed
-              </Link>
-            </p>
-          </div>
-        )}
-
-        {status === 'rejected' && (
-          <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-800">
-            This connect link has expired or was already used. Click <strong>Connect</strong> in the extension again.
-          </p>
-        )}
-
-        {status === 'no-reply' && fallbackToken && (
-          <div role="alert" className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-medium">The extension didn't respond.</p>
-            <p className="mt-1">
-              Open the extension, choose <em>Advanced: paste a token</em>, and paste this token (shown once):
-            </p>
-            <code className="mt-2 block break-all rounded bg-white px-2 py-1">{fallbackToken}</code>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <p role="alert" className="mt-4 text-red-700">
-            Couldn't create a token. Check that the API is running and try again.
-          </p>
-        )}
-      </div>
-    </main>
+/** Signed out when the extension opened this page: sign in first, then it connects. */
+export function ConnectSignedOutPage() {
+  const [params] = useSearchParams()
+  const { name } = browserNames(params.get('browser'))
+  return (
+    <StatePage icon={ICONS.person} title={`Sign in to connect ${name}`}>
+      <StateText>Sign in first; we'll connect this browser right after.</StateText>
+      <SignInButtons />
+    </StatePage>
   )
 }

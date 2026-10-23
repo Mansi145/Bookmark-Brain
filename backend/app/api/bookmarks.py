@@ -1,6 +1,7 @@
 """The feed: the signed-in user's bookmarks, newest first."""
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -8,10 +9,39 @@ from sqlalchemy import and_, func, or_, select
 
 from app.auth.deps import CurrentUser
 from app.db import SessionDep
-from app.models import Bookmark, BookmarkSource
-from app.schemas import BookmarkOut, BookmarkPage, FacetCount, FacetsOut, SourceOut
+from app.models import Bookmark, BookmarkSource, Document, DocumentStatus, ReadState
+from app.schemas import (
+    BookmarkOut,
+    BookmarkPage,
+    FacetCount,
+    FacetsOut,
+    ReadStateCounts,
+    SourceOut,
+)
+from app.services.extract import reading_minutes
+from app.worker import enqueue
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
+
+
+class Section(StrEnum):
+    main = "main"  # the feed: pages we can read today
+    sign_in = "sign_in"  # pages that need an account or subscription
+    dead = "dead"  # "Dead links": pages that no longer load (404/410)
+
+
+# Each bookmark is in exactly one section: dead → dead, needs sign-in → sign_in, else main.
+_dead_links = Document.status == DocumentStatus.dead
+_needs_sign_in = and_(Document.access.is_not(None), ~_dead_links)
+
+
+def _section_filter(section: Section):
+    """SQL condition on the bookmark's document. EXISTS (`has`) keeps NULLs from leaking."""
+    if section == Section.sign_in:
+        return Bookmark.document.has(_needs_sign_in)
+    if section == Section.dead:
+        return Bookmark.document.has(_dead_links)
+    return ~Bookmark.document.has(or_(_needs_sign_in, _dead_links))
 
 
 def _encode_cursor(bookmark: Bookmark) -> str:
@@ -34,8 +64,17 @@ async def list_bookmarks(
     cursor: str | None = None,
     folder: str | None = None,
     browser: str | None = None,
+    section: Section = Section.main,
+    read_state: ReadState | None = None,  # the Feed's reading-state bar; None = all
 ):
-    query = select(Bookmark).where(Bookmark.user_id == user.id, Bookmark.deleted_at.is_(None))
+    query = select(Bookmark).where(
+        Bookmark.user_id == user.id,
+        Bookmark.deleted_at.is_(None),
+        _section_filter(section),  # dead links never show in the main feed
+    )
+
+    if read_state is not None:
+        query = query.where(Bookmark.read_state == read_state)
 
     if folder or browser:
         source_filter = [BookmarkSource.bookmark_id == Bookmark.id]
@@ -72,8 +111,12 @@ async def list_bookmarks(
 
 
 @router.get("/facets", response_model=FacetsOut)
-async def facets(user: CurrentUser, session: SessionDep):
-    """Folder and browser counts, for the feed's filter sidebar."""
+async def facets(user: CurrentUser, session: SessionDep, section: Section = Section.main):
+    """Folder and browser counts, for the feed's filter sidebar (per section).
+
+    Every folder and browser the user has is listed, with 0 where this section has none,
+    so the sidebar looks the same in every section.
+    """
     active = and_(
         BookmarkSource.user_id == user.id,
         BookmarkSource.bookmark_id == Bookmark.id,
@@ -81,18 +124,67 @@ async def facets(user: CurrentUser, session: SessionDep):
     )
 
     async def count_by(column):
-        result = await session.execute(
-            select(column, func.count(func.distinct(Bookmark.id)))
-            .where(active)
-            .group_by(column)
-            .order_by(column)
+        everything = await session.scalars(
+            select(column).where(active).group_by(column).order_by(column)
         )
-        return [FacetCount(value=value, count=count) for value, count in result]
+        in_section = await session.execute(
+            select(column, func.count(func.distinct(Bookmark.id)))
+            .where(active, _section_filter(section))
+            .group_by(column)
+        )
+        counts = dict(in_section.all())
+        return [FacetCount(value=value, count=counts.get(value, 0)) for value in everything]
 
+    in_section = and_(
+        Bookmark.user_id == user.id, Bookmark.deleted_at.is_(None), _section_filter(section)
+    )
+    total = await session.scalar(select(func.count()).select_from(Bookmark).where(in_section))
+    pending = await session.scalar(
+        select(func.count())
+        .select_from(Bookmark)
+        .where(in_section, Bookmark.document.has(Document.status == DocumentStatus.pending))
+    )
+    by_state = dict(
+        (
+            await session.execute(
+                select(Bookmark.read_state, func.count())
+                .where(in_section)
+                .group_by(Bookmark.read_state)
+            )
+        ).all()
+    )
     return FacetsOut(
+        total=total or 0,
+        read_states=ReadStateCounts(**{s.value: by_state.get(s, 0) for s in ReadState}),
+        pending=pending or 0,
         folders=await count_by(BookmarkSource.folder_path),
         browsers=await count_by(BookmarkSource.browser),
     )
+
+
+@router.post("/{bookmark_id}/find-archive", response_model=BookmarkOut, status_code=202)
+async def find_archive_copy(bookmark_id: int, user: CurrentUser, session: SessionDep):
+    """Look up a dead link on the Wayback Machine (the row's "Find archived copy" button).
+
+    Queues a find_archive job and answers straight away with archive_status "checking";
+    the feed polls until it changes. Only for dead links, and only when a user asks, so no
+    URL is sent to archive.org without someone choosing to.
+    """
+    bookmark = await session.scalar(
+        select(Bookmark).where(
+            Bookmark.id == bookmark_id, Bookmark.user_id == user.id, Bookmark.deleted_at.is_(None)
+        )
+    )
+    if bookmark is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bookmark not found")
+    document = bookmark.document
+    if document.status != DocumentStatus.dead:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only dead links can be looked up")
+    if document.archive_status != "checking":  # a lookup already queued is enough
+        document.archive_status = "checking"
+        await enqueue(session, "find_archive", [{"document_id": document.id}])
+        await session.commit()
+    return _to_out(bookmark)
 
 
 def _to_out(bookmark: Bookmark) -> BookmarkOut:
@@ -104,5 +196,13 @@ def _to_out(bookmark: Bookmark) -> BookmarkOut:
         added_at=bookmark.added_at,
         read_state=bookmark.read_state,
         status=bookmark.document.status,
+        http_status=bookmark.document.http_status,
+        icon_url=bookmark.document.icon_url,
+        reading_minutes=reading_minutes(bookmark.document.word_count),
+        content_source=bookmark.document.content_source,
+        archive_status=bookmark.document.archive_status,
+        archive_url=bookmark.document.archive_url,
+        archived_on=bookmark.document.archived_on,
+        access=bookmark.document.access,
         sources=[SourceOut.model_validate(s) for s in bookmark.sources],
     )

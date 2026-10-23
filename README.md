@@ -72,8 +72,8 @@ bookmark_brain/
 ├── frontend/                 React web app
 │   └── src/
 │       ├── api/              fetch client + types
-│       ├── pages/            Login, Feed, Settings, Connect
-│       ├── components/       Layout, BookmarkCard
+│       ├── pages/            Login (sign-up), HowItWorks, Feed, Settings, Connect
+│       ├── components/       Layout, BookmarkCard (feed row), Logo, Nebula (texture), SignInButtons
 │       └── hooks/            useMe (current user)
 ├── extension/                Browser extension (WXT)
 │   ├── entrypoints/          background worker, popup, /connect content script

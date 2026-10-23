@@ -10,6 +10,13 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Fires when a request comes back 401 while we thought we were signed in (the session cookie
+ * expired or was revoked), so the app can show "You've been signed out". /api/me and sign-in
+ * itself are left out: a 401 there just means "not signed in".
+ */
+export const sessionEnded = new EventTarget()
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method,
@@ -19,6 +26,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) {
+    if (res.status === 401 && path !== '/api/me' && !path.startsWith('/api/auth/')) {
+      sessionEnded.dispatchEvent(new Event('ended'))
+    }
     const detail = await res
       .json()
       .then((data) => data.detail)
