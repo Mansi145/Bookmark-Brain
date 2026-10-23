@@ -24,7 +24,12 @@ When code needs fields back, use `model.with_structured_output(PydanticSchema)` 
 1. **Cache per document**: summaries, key points, tags and embeddings are stored on `documents` (shared across users). Check the cache before calling the model.
 2. **Background, not request path**: summarise/embed/tag run as `jobs`, never inside an HTTP handler. Only chat and explicit "re-summarise" actions call the LLM on request, and both check `AI_DAILY_LIMIT_PER_USER`.
 3. **Truncate input** to a token budget before sending (long articles: take the beginning plus headings).
-4. Jobs retry with exponential backoff on 429 errors; after N attempts, mark the job `failed` with the error.
+4. Retries come from the job queue: a handler that **raises** (429, timeouts, 5xx from both Gemini and
+   Groq) is retried after 30 s and 2 min, then marked `failed` after 3 attempts (`background-jobs`
+   skill). Don't write your own retry loops around model calls; for a bad *answer* (invalid structured
+   output) retry once inside the handler, then mark the document `failed`.
+5. Article text comes from the `fetch_page` job (safe fetcher + trafilatura), stored on `documents`;
+   LLM handlers read it from there and never download pages themselves.
 
 ## Testing
 Use `langchain_core.language_models.fake_chat_models.FakeListChatModel` (or `GenericFakeChatModel`) by overriding `get_chat_model` in tests. Tests must never hit real APIs.

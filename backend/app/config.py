@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = False
     session_cookie_samesite: str = "lax"
 
+    # Background job worker (app/worker.py). Tests turn it off and run jobs by hand.
+    worker_enabled: bool = True
+
     # Filled in from later phases.
     google_api_key: str = ""
     groq_api_key: str = ""
