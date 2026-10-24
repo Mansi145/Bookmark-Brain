@@ -26,7 +26,10 @@ START → agent ──(tool_calls?)──yes──► tools ──┐
 2. Use simple, typed arguments (str/int/list[int]); the LLM fills these in.
 3. **Scope to the user**: get `user_id` from injected state/config (`InjectedState` / `RunnableConfig`), *never* from an LLM argument. Otherwise a prompt could read other users' bookmarks.
 4. Return compact JSON (ids, titles, short snippets) and cap result counts. Large outputs waste tokens and quota.
-5. Add it to `TOOLS`, and add a test using a fake model that emits a tool call.
+5. Add it to `TOOLS`, and add a test using a fake model that emits a tool call, plus a test that a
+   second user's bookmarks never come back.
+6. Tools read from the database (documents already fetched/summarised by jobs). A tool must not fetch
+   arbitrary URLs; if it ever needs to, go through `app/services/fetch.py`.
 
 ## Answer rules (system prompt)
 - Answer only from tool results; say when nothing relevant was found.

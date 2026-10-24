@@ -2,7 +2,7 @@
 
 **Saved it? Now actually use it.**
 
-Bookmark Brain collects the bookmarks you've saved in every browser (Chrome, Edge, Brave, Firefox) into one feed of article cards. It summarises each page with AI, lets you search by what a page was *about* rather than its exact title, and lets you ask questions across everything you've saved.
+Bookmark Brain collects the bookmarks you've saved in every browser (Chrome, Edge, Brave, Firefox) into one calm reading list. It summarises each page with AI, lets you search by what a page was *about* rather than its exact title, and lets you ask questions across everything you've saved.
 
 It's a personal learning project for integrating AI agents into a real full-stack app: a FastAPI backend, a React frontend and a browser extension.
 
@@ -11,12 +11,13 @@ It's a personal learning project for integrating AI agents into a real full-stac
 | Phase | What | State |
 |---|---|---|
 | 0 | Foundations: monorepo, FastAPI, Postgres + pgvector, Alembic, React app | ✅ Done |
-| 1 | Google sign-in, extension tokens, bookmark sync, feed with filters | ✅ Done |
-| 2 | Page fetching + AI summaries (Gemini, Groq fallback) | Planned |
+| 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
+| 2 | Background job queue ✅, page fetching + AI summaries (Gemini, Groq fallback) | 🚧 In progress |
 | 3 | Hybrid search: keyword + semantic (embeddings) | Planned |
 | 4 | "Ask your bookmarks" chat agent (LangGraph) | Planned |
 | 5–7 | Auto-tags, dead-link checks, reading status, weekly digest | Planned |
 | 8 | Deploy (Render + Neon + Vercel), CI | Planned |
+| UI | Final design (texture top bar, image-free reading list), GitHub sign-in | Planned |
 
 The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](docs/PLAN.md).
 
@@ -27,7 +28,8 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
                                                      ▼
  React app ──(session cookie, REST)──► FastAPI ──► Postgres (+ pgvector)
                                           │
-                       (Phase 2+) background jobs: fetch page → summarise → embed
+                                          │
+                       in-process job worker (jobs table): fetch page → summarise → embed
                                           ▼
                               Gemini ──fallback──► Groq
 ```
@@ -35,7 +37,9 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
 - **The extension** is the only part that can read your bookmarks; browsers don't let websites do it. On first run it sends your whole bookmark tree, then only the changes (added, edited, moved, removed). An hourly full sync catches anything it missed.
 - **The backend** normalises URLs (lower-cases the host, drops tracking parameters like `utm_*` and `#fragments`), so the same article saved in two browsers becomes **one** bookmark with two sources. A bookmark disappears only when no browser has it any more.
 - **Documents are shared, bookmarks are per user.** Each unique URL is stored once, so the AI work for it (summary, embedding) only has to happen once, however many people saved it.
-- **Sign-in:** the web app signs in with Google and gets an httpOnly session cookie. The extension uses a personal access token created on the Settings page. Only a hash of the token is stored.
+- **Sign-in:** the web app signs in with Google and gets an httpOnly session cookie. The extension uses a personal access token that it receives through **one-click connect**: the popup opens the web app's `/connect` page, which creates the token and hands it to the extension. Only a hash of the token is stored.
+- **Slow work runs in the background.** Fetching pages and (soon) AI summaries run as rows in a `jobs` table, processed by a worker inside the API. Syncs stay fast, jobs survive restarts, and failures are retried. The server only fetches public addresses, so a bookmark can't make it probe its own network.
+- **Text first.** The feed is a reading list grouped by when you saved things; there are no preview images.
 
 ## Tech stack
 
@@ -61,21 +65,23 @@ bookmark_brain/
 │   │   ├── schemas.py        request/response models
 │   │   ├── auth/             Google token check, session JWTs, access tokens
 │   │   ├── api/              routes: health, auth, tokens, sync, bookmarks
-│   │   └── services/         URL normalisation, sync/merge logic
+│   │   ├── services/         URL normalisation, sync/merge, safe page fetcher
+│   │   └── worker.py         background job queue + worker
 │   ├── alembic/              database migrations
 │   └── tests/                pytest (uses a separate test database)
 ├── frontend/                 React web app
 │   └── src/
 │       ├── api/              fetch client + types
-│       ├── pages/            Login, Feed, Settings
+│       ├── pages/            Login, Feed, Settings, Connect
 │       ├── components/       Layout, BookmarkCard
 │       └── hooks/            useMe (current user)
 ├── extension/                Browser extension (WXT)
-│   ├── entrypoints/          background worker + popup
-│   └── lib/sync.ts           reads bookmarks, talks to the API
+│   ├── entrypoints/          background worker, popup, /connect content script
+│   ├── lib/                  sync.ts (bookmarks → API), connect.ts (one-click connect)
+│   └── assets/icon/          logo SVGs (`npm run icons` renders the PNG icons)
 ├── docs/PLAN.md              roadmap and design decisions
 ├── docker-compose.yml        local Postgres + pgvector
-└── CLAUDE.md, .claude/skills project conventions for AI-assisted development
+└── CLAUDE.md, .claude/skills project conventions and how-tos (dev setup, jobs, extension, design, …)
 ```
 
 ## Running locally
@@ -105,7 +111,7 @@ uv run alembic upgrade head   # create the tables
 uv run fastapi dev app/main.py
 ```
 
-The API runs at http://localhost:8000. Interactive docs are at http://localhost:8000/docs. Check http://localhost:8000/health/db, which should return `{"status":"ok","pgvector":"0.8.x"}`.
+The API runs at http://localhost:8000, with the background job worker running inside it. Interactive docs are at http://localhost:8000/docs. Check http://localhost:8000/health/db, which should return `{"status":"ok","pgvector":"0.8.x"}`.
 
 **`backend/.env`**
 
@@ -119,6 +125,7 @@ The API runs at http://localhost:8000. Interactive docs are at http://localhost:
 | `GROQ_API_KEY` | Phase 2+ | fallback model |
 | `LANGSMITH_API_KEY` | Phase 4 | optional tracing |
 | `AI_DAILY_LIMIT_PER_USER` | Phase 2+ | protects the free-tier quota |
+| `WORKER_ENABLED` | optional | `false` runs the API without the background job worker (default `true`) |
 
 In production also set `SESSION_COOKIE_SECURE=true` and `SESSION_COOKIE_SAMESITE=none`, because the frontend and API are on different domains.
 
@@ -200,8 +207,10 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 ## Troubleshooting
 
 - **`Connect call failed ('127.0.0.1', 5432)`:** the database isn't running. Start Docker Desktop, then `docker compose up -d db`.
+- **Connect page says the extension didn't respond:** reload the extension in `chrome://extensions`, then open Connect again from the popup (content scripts only attach to tabs opened after the reload).
+- **Something stays "pending":** check the job queue with `docker compose exec db psql -U bb bookmark_brain -c "select kind, status, last_error from jobs where status <> 'done'"`.
 - **The Google button shows an error:** `http://localhost:5173` is missing from your OAuth client's authorised JavaScript origins, or `VITE_GOOGLE_CLIENT_ID` doesn't match `GOOGLE_CLIENT_ID`.
-- **The extension says "Token rejected":** the token was revoked or mistyped. Create a new one in Settings.
+- **The extension says "Token rejected":** the token was revoked. Click **Reconnect** in the popup.
 - **The extension can't reach the API:** check that the API is running and that its URL matches `host_permissions` in `wxt.config.ts`.
 
 ## License

@@ -15,8 +15,14 @@ description: Deploying Bookmark Brain to Render (FastAPI), Neon (Postgres + pgve
 - Build: `pip install uv && uv sync --frozen`
 - Start: `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - Health check path: `/health` (must be cheap: no DB or LLM calls).
-- Env vars: everything in the `dev-setup` skill, with prod values; `FRONTEND_ORIGIN=https://<app>.vercel.app`.
-- **Keep warm**: cron-job.org → `GET https://<api>.onrender.com/health` every 10 min. The free plan's 750 h/month covers one service running 24/7. This also keeps the in-process job worker alive.
+- Env vars: everything in the `dev-setup` skill, with prod values; `FRONTEND_ORIGIN=https://<app>.vercel.app`,
+  `SESSION_COOKIE_SECURE=true`, `SESSION_COOKIE_SAMESITE=none`, `WORKER_ENABLED=true`.
+- Run migrations against Neon (direct URL) **before** deploying code that needs them.
+- **Keep warm**: cron-job.org → `GET https://<api>.onrender.com/health` every 10 min. The free plan's 750 h/month covers one service running 24/7. This also keeps the in-process job worker alive: it runs inside the API process, so if Render puts
+  the service to sleep, queued jobs wait until the next request wakes it. Several instances would be
+  safe (jobs are claimed with `SKIP LOCKED`), but the free tier runs one.
+- The worker fetches arbitrary user URLs from Render's network; `app/services/fetch.py` blocks
+  private and metadata addresses. Never bypass it.
 
 ## Vercel (frontend)
 - Import repo, root dir `frontend/`, framework Vite.
@@ -32,10 +38,16 @@ Frontend (vercel.app) and API (onrender.com) are on different sites:
 GitHub Actions cron (`.github/workflows/cron.yml`) calls `POST /internal/digest` and `POST /internal/link-check` with header `X-Cron-Secret: $INTERNAL_CRON_SECRET`.
 
 ## Extension
-- Build with `WXT_API_URL=https://<api>.onrender.com WXT_APP_URL=https://<app>.vercel.app npm run zip`, and add
-  `https://<app>.vercel.app/connect*` to `matches` in `extension/entrypoints/connect.content.ts` first.
+- Before building: add `https://<app>.vercel.app/connect*` to `matches` in
+  `extension/entrypoints/connect.content.ts` (one-click connect only works on matched pages), and the
+  API host to `host_permissions` in `wxt.config.ts` if it isn't `*.onrender.com`.
+- Build with `WXT_API_URL=https://<api>.onrender.com WXT_APP_URL=https://<app>.vercel.app npm run zip`.
+- Bump `version` in `extension/package.json` for each store upload.
 - Chrome Web Store as **unlisted** (one-time $5 developer fee), or share the zip for "Load unpacked".
-- Firefox: `npm run zip:firefox` → addons.mozilla.org (free).
+- Firefox: `npm run zip:firefox` → addons.mozilla.org (free). Replace the placeholder gecko id
+  `bookmark-brain@example.com` in `wxt.config.ts` with a real one first.
+- Store listings need the 128 px icon (`extension/public/icon/128.png`) and a privacy note: the
+  extension sends bookmark URLs, titles and folder names to the user's own account, nothing else.
 
 ## Rollback
 Render: "Rollback" to a previous deploy. Vercel: promote a previous deployment. DB: write a new migration that reverses the change; don't run downgrade on prod with real data.

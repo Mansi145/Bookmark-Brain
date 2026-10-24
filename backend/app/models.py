@@ -9,6 +9,8 @@ Shape of the bookmark data:
 
 `documents` are shared across users (one row per normalised URL), so the
 expensive AI work done in later phases is cached once per URL.
+
+`jobs` is the background work queue (see app/worker.py).
 """
 
 import enum
@@ -19,11 +21,15 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -129,3 +135,36 @@ class BookmarkSource(TimestampMixin, Base):
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     bookmark: Mapped[Bookmark] = relationship(back_populates="sources")
+
+
+class JobStatus(enum.StrEnum):
+    queued = "queued"
+    running = "running"
+    done = "done"
+    failed = "failed"  # gave up after max attempts
+
+
+class Job(TimestampMixin, Base):
+    """A unit of slow background work, e.g. {"kind": "fetch_page", "payload": {"document_id": 7}}.
+
+    Request handlers only insert rows here; app/worker.py picks them up. Keeping the
+    queue in Postgres means no Redis/Celery, and a job survives the API restarting.
+    """
+
+    __tablename__ = "jobs"
+    # The worker's "next job" query: queued jobs whose time has come, oldest first.
+    __table_args__ = (Index("ix_jobs_status_run_after", "status", "run_after"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(50))
+    payload: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    status: Mapped[JobStatus] = mapped_column(
+        Enum(JobStatus, name="job_status"), server_default=JobStatus.queued.value
+    )
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    # Not before this time (used for retry back-off).
+    run_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # When a worker took it. A "running" job with an old locked_at belongs to a worker
+    # that died (e.g. the API restarted), so it's safe to hand out again.
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)

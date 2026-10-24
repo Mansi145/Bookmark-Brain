@@ -5,6 +5,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Background jobs (Phase 2 groundwork)
+
+#### Added
+- **`jobs` table** (migration `0003`): kind, JSON payload, status (`queued` / `running` / `done` / `failed`), attempts, `run_after`, `locked_at`, last error.
+- **Job worker** (`app/worker.py`), started with the API (FastAPI lifespan; `WORKER_ENABLED=false` turns it off).
+  - Four loops claim jobs with `SELECT … FOR UPDATE SKIP LOCKED`, so no job runs twice.
+  - Failed jobs retry after 30 s and then 2 min, and are marked `failed` after 3 attempts.
+  - A job left `running` by a restarted API is taken over after 10 minutes.
+  - A handler's writes are committed together with the job being marked done.
+- **Safe page fetcher** (`app/services/fetch.py`): refuses private, loopback and link-local addresses on every request and redirect (SSRF protection); 10 s timeout, 3 MB cap; classifies 429/5xx/timeouts as retryable.
+- **Tests** for the queue (success, back-off, giving up, rollback, stale jobs) and the fetcher (blocked addresses, redirects to private IPs, status and content-type handling).
+
+- **Docs**
+  - New skills: `background-jobs` (queue internals, adding a job kind, testing, debugging), `extension` (sync model, one-click connect security rules, permissions, building, icons), `ui-design` (final design tokens, texture recipe, logo, landing page and feed layout), `git-workflow` (commit rules, branches, PRs, changelog, gh workarounds).
+  - `docs/PLAN.md` brought up to date: status table, new decisions (one-click connect, minimal extension permissions, job queue, safe fetcher, no preview images), design direction, actual repo layout and data model, Phase 2 progress.
+  - `CLAUDE.md`, `README.md` and the `dev-setup`, `deploy`, `db-migrations`, `llm-patterns` and `langgraph-agent` skills updated (worker, `WORKER_ENABLED`, SSRF rule, migration pitfalls, extension deploy steps, git rules).
+  - `WORKER_ENABLED` added to `backend/.env.example`.
+
+#### Decided
+- Feed cards won't show page preview images (`og:image`): many bookmarked pages have none or a generic logo, hotlinked images break, and the feed design is now an image-free reading list.
+
 ### One-click extension connect
 
 #### Added
