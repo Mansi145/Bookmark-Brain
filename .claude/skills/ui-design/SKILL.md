@@ -203,6 +203,19 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
 - These cards **follow the theme** (owner): `surface` / `ink` / `ink2`, so they turn dark in dark
   mode (main button `ink` with `onInk` text; sign-in buttons stay dark); the texture behind them is
   the same in both. Boards `ConnectStatesDark`, `ErrorStatesDark`.
+- **Connect extras** (owner picked all; placement may move later):
+  - Connecting / Syncing / Done start with a **step strip** (Connect → Sync → Open feed; done = `accent`
+    check, current = `accent` number, upcoming = outlined) and the **browser's logo and ours** on
+    56 px white chips joined by a line: dotted and moving while connecting, an `accent` line with
+    flowing gaps while syncing, solid with an `accent` check when done (motion off for reduced motion).
+  - Syncing: "231 bookmarks in 14 folders so far" + progress bar + **Just arrived** (the newest 4
+    bookmarks with site logos, title and site).
+  - Done **no longer opens the feed by itself**: two stat tiles (bookmarks, folders), "Also
+    connected: …" (only when other browsers are), what happens next (pages read in the background,
+    summaries on Summarise), a **pin the extension** tip, **Open your feed** + **Connect another
+    browser** (to Settings).
+  - Under every Connect card, on the texture: a lock icon + "We only read your bookmarks' titles,
+    links and folders, plus the public pages they point to."
 - Connect also has three states the build added, on the board as 7–9 with their wording **waiting
   for the owner's review**: "Connected, but the first sync failed" (the extension's error + Go to
   your feed), "Something went wrong" (the token couldn't be made; Try again) and "Connect from the

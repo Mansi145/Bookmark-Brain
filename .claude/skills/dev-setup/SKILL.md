@@ -93,3 +93,34 @@ curl -s localhost:8000/health/db
 docker compose exec db psql -U bb bookmark_brain -c "select kind, status, count(*) from jobs group by 1, 2"
 docker compose exec db psql -U bb bookmark_brain -c "select count(*) from bookmarks where deleted_at is null"
 ```
+
+## Flaky tests on WSL2: the clock jumps
+**Symptom:** the backend suite fails now and then, a different test each run, usually with
+`{"detail":"Not signed in"}` (401) for a valid session, or pages still `pending` after
+`run_once()`. Re-running passes.
+
+**Cause:** on WSL2, two things set the clock: WSL's own sync from Windows and the
+`systemd-timesyncd` NTP service inside the distro. They disagree by a second or two and keep
+pulling the clock back and forth (seen: -1.5 s then +4.2 s within 40 s). Docker shares the WSL
+kernel, so Postgres jumps too. A backward jump makes a fresh login token's `iat` lie in the
+future (PyJWT rejects it: "not yet valid") and makes a just-queued job's `run_after` look not due.
+
+**Check:** wall clock vs monotonic clock for 40 s; any jump over 0.05 s confirms it:
+```bash
+cd backend && uv run python -c "
+import time; w,m=time.time(),time.monotonic(); p=0; j=[]
+while time.monotonic()-m<40:
+    d=(time.time()-w)-(time.monotonic()-m)
+    if abs(d-p)>0.05: j.append(round(d-p,3))
+    p=d; time.sleep(0.01)
+print('jumps:', j)"
+```
+
+**Fix (owner's choice: stop it for now, don't disable it):**
+```bash
+sudo systemctl stop systemd-timesyncd     # until the next WSL restart
+sudo systemctl start systemd-timesyncd    # to turn it back on
+```
+It comes back after `wsl --shutdown` / a reboot, so stop it again if the flakes return. WSL keeps
+the time right from Windows without it. Expect one last jump of a second or so right after
+stopping it (WSL correcting the clock once); a second check should show no jumps.

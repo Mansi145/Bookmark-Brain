@@ -125,3 +125,18 @@ class FacetsOut(BaseModel):
     pending: int  # of those, pages still being fetched
     folders: list[FacetCount]
     browsers: list[FacetCount]
+
+
+class ArrivedBookmark(BaseModel):
+    title: str
+    site: str
+    icon_url: str | None
+
+
+class SyncSummaryOut(BaseModel):
+    """What one browser has sent so far (the Connect page while syncing, and when done)."""
+
+    bookmarks: int
+    folders: int
+    just_arrived: list[ArrivedBookmark]  # newest first
+    other_browsers: list[str]  # the user's other browsers that have synced bookmarks

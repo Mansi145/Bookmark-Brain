@@ -13,16 +13,6 @@ export const ICONS = {
       <path d="M4 21a8 8 0 0 1 16 0" />
     </>
   ),
-  spinner: <path d="M12 3a9 9 0 1 0 9 9" className="origin-center animate-spin motion-reduce:animate-none" />,
-  sync: (
-    <>
-      <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" />
-      <path d="M4 3v5h5" />
-      <path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" />
-      <path d="M20 21v-5h-5" />
-    </>
-  ),
-  check: <path d="m5 12 4.5 4.5L19 7" />,
   key: (
     <>
       <circle cx="8" cy="15" r="4" />

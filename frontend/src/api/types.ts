@@ -56,3 +56,17 @@ export type Facets = {
   folders: FacetCount[]
   browsers: FacetCount[]
 }
+
+export type ArrivedBookmark = {
+  title: string
+  site: string
+  icon_url: string | null
+}
+
+/** GET /api/bookmarks/sync-summary?browser=: what one browser has sent so far (Connect page). */
+export type SyncSummary = {
+  bookmarks: number
+  folders: number
+  just_arrived: ArrivedBookmark[] // newest first
+  other_browsers: string[]
+}

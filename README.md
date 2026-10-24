@@ -201,8 +201,10 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET / POST | `/api/tokens` | cookie or token | list / create extension tokens |
 | DELETE | `/api/tokens/{id}` | cookie or token | revoke a token |
 | POST | `/api/sync` | cookie or token | full or incremental bookmark sync from the extension |
-| GET | `/api/bookmarks` | cookie or token | feed, newest first; `limit`, `cursor`, `folder`, `browser` |
-| GET | `/api/bookmarks/facets` | cookie or token | folder and browser counts for the filters |
+| GET | `/api/bookmarks` | cookie or token | feed, newest first; `limit`, `cursor`, `folder`, `browser`, `section` (`main` / `sign_in` / `dead`), `read_state` |
+| GET | `/api/bookmarks/facets` | cookie or token | counts for a `section`: total, pending, unread/read, folders and browsers |
+| GET | `/api/bookmarks/sync-summary` | cookie or token | what one `browser` has sent so far (Connect page): bookmarks, folders, the last 4 received, other browsers |
+| POST | `/api/bookmarks/{id}/find-archive` | cookie or token | look up a dead link on the Wayback Machine (queues a job) |
 
 ## Troubleshooting
 
@@ -211,6 +213,7 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 - **Something stays "pending":** check the job queue with `docker compose exec db psql -U bb bookmark_brain -c "select kind, status, last_error from jobs where status <> 'done'"`.
 - **The Google button shows an error:** `http://localhost:5173` is missing from your OAuth client's authorised JavaScript origins, or `VITE_GOOGLE_CLIENT_ID` doesn't match `GOOGLE_CLIENT_ID`.
 - **The extension says "Token rejected":** the token was revoked. Click **Reconnect** in the popup.
+- **Backend tests fail at random on WSL2** ("Not signed in", or pages stuck `pending`): the clock is jumping because WSL's time sync and `systemd-timesyncd` fight. Run `sudo systemctl stop systemd-timesyncd` (it comes back after a WSL restart; `sudo systemctl start systemd-timesyncd` to undo). Details in the `dev-setup` skill.
 - **The extension can't reach the API:** check that the API is running and that its URL matches `host_permissions` in `wxt.config.ts`.
 
 ## License

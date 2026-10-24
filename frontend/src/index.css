@@ -32,6 +32,13 @@
 
   /* Progress bar with no known end (first sync, server waking up): a segment sliding across. */
   --animate-slide: slide 1.6s ease-in-out infinite;
+  /* The Connect page's browser-to-app line: dashes flowing towards our logo. */
+  --animate-flow: flow 0.8s linear infinite;
+  @keyframes flow {
+    to {
+      stroke-dashoffset: -16;
+    }
+  }
   @keyframes slide {
     from {
       transform: translateX(-100%);

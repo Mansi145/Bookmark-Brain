@@ -11,14 +11,17 @@ from app.auth.deps import CurrentUser
 from app.db import SessionDep
 from app.models import Bookmark, BookmarkSource, Document, DocumentStatus, ReadState
 from app.schemas import (
+    ArrivedBookmark,
     BookmarkOut,
     BookmarkPage,
     FacetCount,
     FacetsOut,
     ReadStateCounts,
     SourceOut,
+    SyncSummaryOut,
 )
 from app.services.extract import reading_minutes
+from app.services.icons import default_icon
 from app.worker import enqueue
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
@@ -159,6 +162,59 @@ async def facets(user: CurrentUser, session: SessionDep, section: Section = Sect
         pending=pending or 0,
         folders=await count_by(BookmarkSource.folder_path),
         browsers=await count_by(BookmarkSource.browser),
+    )
+
+
+@router.get("/sync-summary", response_model=SyncSummaryOut)
+async def sync_summary(user: CurrentUser, session: SessionDep, browser: str):
+    """What one browser has sent so far, for the Connect page.
+
+    Counts every bookmark this browser has (all sections), the folders they're in, and the
+    last few to arrive, by when we received them rather than when they were saved. A
+    bookmark already synced from another browser counts as arrived when this one sends it.
+    """
+    live = and_(
+        BookmarkSource.user_id == user.id,
+        BookmarkSource.bookmark_id == Bookmark.id,
+        Bookmark.deleted_at.is_(None),
+    )
+    from_browser = and_(live, BookmarkSource.browser == browser)
+
+    bookmarks = await session.scalar(
+        select(func.count(func.distinct(Bookmark.id))).where(from_browser)
+    )
+    folders = await session.scalar(
+        select(func.count(func.distinct(BookmarkSource.folder_path))).where(
+            from_browser, BookmarkSource.folder_path != ""
+        )
+    )
+    newest = await session.scalars(
+        select(Bookmark)
+        .join(BookmarkSource, BookmarkSource.bookmark_id == Bookmark.id)
+        .where(from_browser)
+        .order_by(BookmarkSource.created_at.desc(), BookmarkSource.id.desc())
+        .limit(4)
+    )
+    others = await session.scalars(
+        select(BookmarkSource.browser)
+        .where(live, BookmarkSource.browser != browser)
+        .group_by(BookmarkSource.browser)
+        .order_by(BookmarkSource.browser)
+    )
+    return SyncSummaryOut(
+        bookmarks=bookmarks or 0,
+        folders=folders or 0,
+        just_arrived=[
+            ArrivedBookmark(
+                title=b.title,
+                site=b.document.site,
+                # Pages (and their logos) are fetched after the sync, so guess /favicon.ico
+                # until then; the browser shows a letter tile if the guess is wrong.
+                icon_url=b.document.icon_url or default_icon(b.document.url),
+            )
+            for b in newest.unique()
+        ],
+        other_browsers=list(others),
     )
 
 

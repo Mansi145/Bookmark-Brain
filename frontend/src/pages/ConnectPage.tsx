@@ -1,14 +1,17 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
-import type { CreatedApiToken, Facets } from '../api/types'
+import type { CreatedApiToken, SyncSummary } from '../api/types'
+import { LogoPair, PinTip, PrivacyNote, StepStrip } from '../components/ConnectParts'
 import SignInButtons from '../components/SignInButtons'
+import SiteIcon from '../components/SiteIcon'
 import StatePage, { SlidingBar, StateText } from '../components/StatePage'
 import { ICONS, stateAction } from '../components/statePageParts'
 
 // Opened by the extension's "Connect this browser" button (design board ConnectStates): it
-// connects on its own, waits for the first sync, then opens the feed.
+// connects on its own, shows bookmarks arriving during the first sync, then a summary with a
+// button to open the feed (it doesn't jump there by itself).
 //
 // How the token reaches the extension: the page creates it and hands it to the extension's
 // content script with window.postMessage (same page, same origin only). The extension checks
@@ -27,8 +30,6 @@ const MSG = {
 // How long to wait for the extension to say hello, then to accept the token.
 const FIND_EXTENSION_MS = 3000
 const ACCEPT_TOKEN_MS = 4000
-// "Connected" shows for a moment before the feed opens.
-const OPEN_FEED_MS = 1500
 
 type Status = 'connecting' | 'syncing' | 'done' | 'sync-failed' | 'expired' | 'no-reply' | 'error'
 
@@ -51,19 +52,16 @@ export default function ConnectPage() {
   const started = useRef(false)
   const tokenId = useRef<number | null>(null)
   const timeout = useRef<number | undefined>(undefined)
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  // While the first sync runs, count what has arrived so far (polls the feed's counts).
-  const counts = useQuery({
-    queryKey: ['facets', 'main'],
-    queryFn: () => api.get<Facets>('/api/bookmarks/facets?section=main'),
-    enabled: status === 'syncing',
+  // What this browser has sent so far: polled during the first sync ("Just arrived"), then
+  // fetched once more for the Done summary.
+  const summary = useQuery({
+    queryKey: ['sync-summary', browser],
+    queryFn: () => api.get<SyncSummary>(`/api/bookmarks/sync-summary?browser=${encodeURIComponent(browser!)}`),
+    enabled: Boolean(browser) && (status === 'syncing' || status === 'done'),
     refetchInterval: status === 'syncing' ? 1500 : false,
   })
-  const found = browser
-    ? counts.data?.browsers.find((b) => b.value === browser)?.count
-    : counts.data?.total
 
   async function connect(extensionFound: boolean) {
     setStatus('connecting')
@@ -114,11 +112,11 @@ export default function ConnectPage() {
       }
       if (type === MSG.synced) {
         if (event.data.ok) {
-          // Drop any cached (empty) feed so it's fetched fresh, then open it in this tab.
+          // Drop any cached (empty) feed so it's fresh when opened, and get the final counts.
           void queryClient.invalidateQueries({ queryKey: ['bookmarks'] })
           void queryClient.invalidateQueries({ queryKey: ['facets'] })
+          void queryClient.invalidateQueries({ queryKey: ['sync-summary'] })
           setStatus('done')
-          timeout.current = window.setTimeout(() => navigate('/', { replace: true }), OPEN_FEED_MS)
         } else {
           setSyncError(String(event.data.error ?? 'Unknown error'))
           setStatus('sync-failed')
@@ -135,11 +133,19 @@ export default function ConnectPage() {
     }
     // connect() only uses refs and stable setters, so it doesn't need to be a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nonce, navigate, queryClient])
+  }, [nonce, queryClient])
+
+  const note = <PrivacyNote />
+  const progress = (step: 1 | 2 | 3, line: 'connecting' | 'syncing' | 'done') => (
+    <>
+      <StepStrip current={step} />
+      <LogoPair browser={browser} state={line} />
+    </>
+  )
 
   if (!nonce) {
     return (
-      <StatePage icon={ICONS.link} title="Connect from the extension">
+      <StatePage icon={ICONS.link} title="Connect from the extension" note={note}>
         <StateText>
           Click the Bookmark Brain extension's icon, then <strong className="font-semibold text-ink">Connect this browser</strong>.
           It opens this page and connects in a few seconds.
@@ -154,32 +160,58 @@ export default function ConnectPage() {
   switch (status) {
     case 'connecting':
       return (
-        <StatePage icon={ICONS.spinner} title={`Connecting ${name}…`}>
+        <StatePage header={progress(1, 'connecting')} title={`Connecting ${name}…`} note={note}>
           <StateText>Keep this tab open. It only takes a few seconds.</StateText>
         </StatePage>
       )
-    case 'syncing':
+    case 'syncing': {
+      const s = summary.data
       return (
-        <StatePage icon={ICONS.sync} title="Syncing your bookmarks">
+        <StatePage header={progress(2, 'syncing')} title="Syncing your bookmarks" note={note}>
           <StateText>
-            {found ? `${found} ${found === 1 ? 'bookmark' : 'bookmarks'} found so far. ` : ''}
-            Your feed opens as soon as this finishes.
+            {s && s.bookmarks > 0 && `${countLabel(s.bookmarks, 'bookmark')} in ${countLabel(s.folders, 'folder')} so far. `}
+            Keep this tab open until it finishes.
           </StateText>
           <SlidingBar />
+          {s && s.just_arrived.length > 0 && <JustArrived items={s.just_arrived} />}
         </StatePage>
       )
-    case 'done':
+    }
+    case 'done': {
+      const s = summary.data
       return (
-        <StatePage icon={ICONS.check} title={`${Name} is connected`}>
-          <StateText>Opening your feed…</StateText>
-          <Link to="/" replace className={stateAction}>
-            Open feed now
-          </Link>
+        <StatePage header={progress(3, 'done')} title={`${Name} is connected`} note={note}>
+          {s && (
+            <div className="flex gap-2.5">
+              <StatTile value={s.bookmarks} label={s.bookmarks === 1 ? 'bookmark' : 'bookmarks'} />
+              <StatTile value={s.folders} label={s.folders === 1 ? 'folder' : 'folders'} />
+            </div>
+          )}
+          {s && s.other_browsers.length > 0 && (
+            <StateText>
+              <strong className="font-semibold text-ink">Also connected:</strong>{' '}
+              {s.other_browsers.map((b) => browserNames(b).Name).join(', ')}. Links saved in more than one browser
+              show up once.
+            </StateText>
+          )}
+          <StateText>
+            Pages are read in the background, and summaries come when you click <em>Summarise</em>.
+          </StateText>
+          <PinTip />
+          <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2">
+            <Link to="/" replace className={stateAction}>
+              Open your feed
+            </Link>
+            <Link to="/settings" className="font-medium text-ink underline underline-offset-[3px]">
+              Connect another browser
+            </Link>
+          </div>
         </StatePage>
       )
+    }
     case 'no-reply':
       return (
-        <StatePage icon={ICONS.key} title="Connect by hand">
+        <StatePage icon={ICONS.key} title="Connect by hand" note={note}>
           <StateText>
             The extension didn't reply. Copy this token and paste it into the extension under{' '}
             <em>Advanced: paste a token</em>. It's only shown once.
@@ -200,13 +232,13 @@ export default function ConnectPage() {
       )
     case 'expired':
       return (
-        <StatePage icon={ICONS.clock} title="This link has expired">
+        <StatePage icon={ICONS.clock} title="This link has expired" note={note}>
           <StateText>Connect links last 15 minutes. Open the extension and click Connect this browser again.</StateText>
         </StatePage>
       )
     case 'sync-failed':
       return (
-        <StatePage icon={ICONS.alert} title="Connected, but the first sync failed">
+        <StatePage icon={ICONS.alert} title="Connected, but the first sync failed" note={note}>
           <StateText>
             {syncError} The extension will try again in a few minutes, or you can click <em>Sync now</em> in its popup.
           </StateText>
@@ -217,7 +249,7 @@ export default function ConnectPage() {
       )
     case 'error':
       return (
-        <StatePage icon={ICONS.alert} title="Something went wrong">
+        <StatePage icon={ICONS.alert} title="Something went wrong" note={note}>
           <StateText>We couldn't connect {name}. Your bookmarks are safe.</StateText>
           <button type="button" onClick={() => void connect(true)} className={stateAction}>
             Try again
@@ -227,12 +259,48 @@ export default function ConnectPage() {
   }
 }
 
+function countLabel(n: number, word: string) {
+  return `${n} ${n === 1 ? word : `${word}s`}`
+}
+
+/** The newest few bookmarks to arrive; the last one fades, as more are on the way. */
+function JustArrived({ items }: { items: SyncSummary['just_arrived'] }) {
+  return (
+    <div>
+      <p className="mt-1 mb-0.5 text-[13px] font-semibold text-ink2">Just arrived</p>
+      <ul aria-live="polite" className="m-0 list-none border-t border-line p-0">
+        {items.map((b, i) => (
+          <li
+            key={`${b.site}-${b.title}`}
+            className={`flex items-center gap-2.5 border-b border-line py-2 ${i === 3 ? 'opacity-55' : ''}`}
+          >
+            <SiteIcon iconUrl={b.icon_url} site={b.site} />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-sm font-medium">{b.title}</span>
+              <span className="text-[13px] text-muted">{b.site}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function StatTile({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex-1 rounded-xl border border-line bg-panel px-3.5 py-2.5">
+      <div className="font-serif text-[26px] leading-[1.15] font-bold">{value}</div>
+      <div className="text-[13px] text-ink2">{label}</div>
+    </div>
+  )
+}
+
 /** Signed out when the extension opened this page: sign in first, then it connects. */
 export function ConnectSignedOutPage() {
   const [params] = useSearchParams()
   const { name } = browserNames(params.get('browser'))
   return (
-    <StatePage icon={ICONS.person} title={`Sign in to connect ${name}`}>
+    <StatePage icon={ICONS.person} title={`Sign in to connect ${name}`} note={<PrivacyNote />}>
       <StateText>Sign in first; we'll connect this browser right after.</StateText>
       <SignInButtons />
     </StatePage>
