@@ -1,0 +1,15 @@
+<!-- Simplified logo for 16/32 px toolbar icons: thin lines and brain folds turn to mush that
+     small, so this keeps only the outline, eyes and ribbon, with thicker strokes. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 30 184 194" fill="none" stroke="#141516" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <radialGradient id="aura" gradientUnits="userSpaceOnUse" cx="100" cy="76" r="150" fx="100" fy="70">
+      <stop offset="0" stop-color="#955E7D"/>
+      <stop offset="0.45" stop-color="#CA8FB9"/>
+      <stop offset="1" stop-color="#FFC0F5"/>
+    </radialGradient>
+  </defs>
+  <path fill="url(#aura)" d="M60 112 C46 110 42 94 50 86 C40 78 44 60 58 58 C58 44 74 38 86 44 C92 34 108 34 114 44 C126 38 142 44 142 58 C156 60 160 78 150 86 C158 94 154 110 140 112 C128 118 112 116 100 112 C88 116 72 118 60 112 Z"/>
+  <line x1="84" y1="82" x2="84" y2="94" stroke-width="13"/>
+  <line x1="116" y1="82" x2="116" y2="94" stroke-width="13"/>
+  <path fill="url(#aura)" d="M62 126 H138 Q150 126 150 138 V210 Q150 220 141 215 L100 190 L59 215 Q50 220 50 210 V138 Q50 126 62 126 Z"/>
+</svg>

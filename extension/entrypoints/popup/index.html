@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bookmark Brain</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h1>Bookmark Brain</h1>
+
+    <p id="status" class="status"></p>
+
+    <div class="actions">
+      <button id="connect" type="button">Connect this browser</button>
+      <button id="sync" type="button" class="secondary" hidden>Sync now</button>
+    </div>
+
+    <details>
+      <summary>Advanced: paste a token</summary>
+      <form id="settings">
+        <label>
+          API URL
+          <input id="apiUrl" type="url" required />
+        </label>
+        <label>
+          Access token
+          <input id="token" type="password" placeholder="bb_pat_…" required autocomplete="off" />
+        </label>
+        <button type="submit" class="secondary">Save &amp; sync now</button>
+      </form>
+      <p class="hint">Create a token on the Settings page of the Bookmark Brain web app.</p>
+    </details>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
