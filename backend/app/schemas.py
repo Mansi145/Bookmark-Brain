@@ -95,18 +95,30 @@ class BookmarkOut(ORMModel):
     status: DocumentStatus
     http_status: int | None  # e.g. 404 for a dead link
     icon_url: str | None  # the site's logo; the browser loads it from the site
+    image_url: str | None  # the page's preview image, for the newspaper feed's top story
     reading_minutes: int | None  # from the page's word count; None until it's fetched
     content_source: str | None  # "page" | "archive" | None (no text)
     archive_status: str | None  # dead links: None | checking | found | none | failed
     archive_url: str | None  # Wayback Machine copy, if there is one
     archived_on: datetime | None
     access: str | None  # "login" | "paywall" | None (open)
+    # The on-demand AI summary (shared by everyone who saved this URL). Where it came from
+    # is stored but deliberately not sent: all summaries look the same (owner's decision).
+    description: str | None  # the site's own description, shown when there's no summary
+    summary: str | None
+    key_points: list[str]
+    summary_status: str | None  # None (never asked) | working | done | failed
     sources: list[SourceOut]
+
+
+class BookmarkUpdate(BaseModel):
+    read_state: ReadState
 
 
 class BookmarkPage(BaseModel):
     items: list[BookmarkOut]
     next_cursor: str | None
+    total: int | None = None  # only for numbered pages (`page=`): every match, for the pager
 
 
 class FacetCount(BaseModel):
@@ -140,3 +152,27 @@ class SyncSummaryOut(BaseModel):
     folders: int
     just_arrived: list[ArrivedBookmark]  # newest first
     other_browsers: list[str]  # the user's other browsers that have synced bookmarks
+
+
+class UsageOut(BaseModel):
+    """Today's AI summaries for the signed-in user (the Summarise button and Settings)."""
+
+    summaries_used: int
+    summaries_limit: int
+    resets_at: datetime  # midnight UTC
+
+
+# --- Account ------------------------------------------------------------------
+
+
+class AccountOut(BaseModel):
+    """What deleting the account would remove (Settings → Account's confirmation dialog)."""
+
+    bookmarks: int
+    browsers: int  # connected browsers = extension tokens
+
+
+class AccountDeleteIn(BaseModel):
+    """The typed confirmation, checked here too, not only in the dialog."""
+
+    confirm: str

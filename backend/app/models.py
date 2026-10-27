@@ -14,10 +14,11 @@ expensive AI work done in later phases is cached once per URL.
 """
 
 import enum
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -68,7 +69,7 @@ class ApiToken(TimestampMixin, Base):
 class DocumentStatus(enum.StrEnum):
     pending = "pending"  # known URL, a fetch_page job is queued
     fetched = "fetched"  # article text extracted
-    summarised = "summarised"
+    summarised = "summarised"  # unused: summaries have their own summary_status
     failed = "failed"  # couldn't get readable text (not HTML, blocked, gave up retrying)
     dead = "dead"  # the page is gone (404 / 410)
 
@@ -106,6 +107,20 @@ class Document(TimestampMixin, Base):
     # The site's logo (favicon), as declared by the page or the usual /favicon.ico guess.
     # The browser loads it straight from the site; we don't store images.
     icon_url: Mapped[str | None] = mapped_column(Text)
+    # The page's preview image (og:image), shown only on the newspaper feed's top story. The
+    # browser loads it from the site; we store the URL only. See app/services/preview.py.
+    image_url: Mapped[str | None] = mapped_column(Text)
+
+    # The AI summary, made on demand by the summarise job (app/ai/chains.py) and shared by
+    # everyone who saved this URL. summary_status: null (never asked) | "working" | "done" |
+    # "failed". summary_source records what it was made from: "page", "archive" (a Wayback
+    # copy) or "metadata" (only the title and description); stored, never shown (owner).
+    summary: Mapped[str | None] = mapped_column(Text)
+    key_points: Mapped[list[str] | None] = mapped_column(JSONB)
+    summary_status: Mapped[str | None] = mapped_column(String(16))
+    summary_source: Mapped[str | None] = mapped_column(String(16))
+    summary_model: Mapped[str | None] = mapped_column(String(64))  # which model answered
+    summarised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ReadState(enum.StrEnum):
@@ -189,3 +204,23 @@ class Job(TimestampMixin, Base):
     # that died (e.g. the API restarted), so it's safe to hand out again.
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class AiUsage(Base):
+    """How many AI summaries a user started on a day (UTC), for AI_DAILY_LIMIT_PER_USER.
+
+    The free Gemini and Groq quotas are per API key, so every user shares them; a per-user
+    limit stops one person from using up everyone's day.
+    """
+
+    __tablename__ = "ai_usage"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    summaries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # When a Summarise was first refused that day, and when the user emailed the maintainer
+    # about it from the Limit reached dialog (at most once a day; see api/usage.py).
+    limit_reached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintainer_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

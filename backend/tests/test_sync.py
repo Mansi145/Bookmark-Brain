@@ -224,3 +224,35 @@ def test_sync_summary_for_a_browser_with_nothing_yet(client):
     sync(client, EDGE, [item("9", "https://a.com/post")], full=True)
     summary = client.get("/api/bookmarks/sync-summary", params={"browser": "chrome"}).json()
     assert summary == {"bookmarks": 0, "folders": 0, "just_arrived": [], "other_browsers": ["edge"]}
+
+
+def test_numbered_pages_for_earlier(client):
+    """Earlier's pager: OFFSET pages, newest first, with the total."""
+    sync(
+        client,
+        CHROME,
+        [item(str(d), f"https://a.com/{d}", added=f"2026-01-0{d}T10:00:00Z") for d in range(1, 6)],
+        full=True,
+    )
+    first = feed(client, page=1, limit=2)
+    assert [b["url"] for b in first["items"]] == ["https://a.com/5", "https://a.com/4"]
+    assert (first["total"], first["next_cursor"]) == (5, None)
+    assert [b["url"] for b in feed(client, page=3, limit=2)["items"]] == ["https://a.com/1"]
+    assert feed(client, page=4, limit=2) == {"items": [], "next_cursor": None, "total": 5}
+
+
+def test_feed_splits_at_a_date(client):
+    """Today and This week load what's newer than the start of the week, Earlier the rest."""
+    sync(
+        client,
+        CHROME,
+        [item(str(d), f"https://a.com/{d}", added=f"2026-01-0{d}T10:00:00Z") for d in range(1, 6)],
+        full=True,
+    )
+    week_start = "2026-01-04T00:00:00Z"
+    recent = feed(client, saved_after=week_start)
+    assert [b["url"] for b in recent["items"]] == ["https://a.com/5", "https://a.com/4"]
+    assert recent["total"] is None  # cursor mode: no count needed
+    earlier = feed(client, saved_before=week_start, page=1)
+    assert [b["url"] for b in earlier["items"]] == [f"https://a.com/{d}" for d in (3, 2, 1)]
+    assert earlier["total"] == 3

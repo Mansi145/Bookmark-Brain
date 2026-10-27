@@ -1,9 +1,14 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
 import type { Bookmark, BookmarkPage, FacetCount, Facets, FeedSection, ReadState } from '../api/types'
-import BookmarkCard from '../components/BookmarkCard'
+import BookmarkDetail from '../components/BookmarkDetail'
+import Newspaper, { FrontPageLoading, SectionSheet } from '../components/Newspaper'
+import { groupBySaveDate, startOfWeek, type Edition } from '../lib/editions'
+
+// Earlier's pages (design board Main): 30 briefs each, newest first.
+const EARLIER_PAGE_SIZE = 30
 
 // main: the feed. sign_in: "Needs sign-in" (an account or subscription). dead: "Dead links"
 // (404/410, and pages we could only read from archive.org). Each bookmark is in one section.
@@ -17,29 +22,57 @@ export default function FeedPage({ section }: { section: FeedSection }) {
 
   const facets = useFacets(section)
 
+  // The main feed splits at the start of the week: Today and This week load by scrolling (all
+  // of them), Earlier in numbered pages (?page=2), newest first. The two sections just scroll.
+  const weekStart = section === 'main' ? startOfWeek().toISOString() : null
+  const earlierPage = Math.max(1, Math.floor(Number(params.get('page'))) || 1)
+  const withFilters = (query: URLSearchParams) => {
+    if (folder) query.set('folder', folder)
+    if (browser) query.set('browser', browser)
+    if (readState) query.set('read_state', readState)
+    return query
+  }
+
   const feed = useInfiniteQuery({
-    queryKey: ['bookmarks', { section, folder, browser, readState }],
+    queryKey: ['bookmarks', { section, folder, browser, readState, weekStart }],
     queryFn: ({ pageParam }) => {
-      const query = new URLSearchParams({ limit: '30', section })
+      const query = withFilters(new URLSearchParams({ limit: '30', section }))
       if (pageParam) query.set('cursor', pageParam)
-      if (folder) query.set('folder', folder)
-      if (browser) query.set('browser', browser)
-      if (readState) query.set('read_state', readState)
+      if (weekStart) query.set('saved_after', weekStart)
       return api.get<BookmarkPage>(`/api/bookmarks?${query}`)
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
-    // Pages are fetched in the background after a sync. While any loaded bookmark is still
-    // pending, refetch every few seconds so results appear without a reload; stop after
-    // ~2 minutes in case something stays pending (e.g. the worker is off).
-    // Also poll while a Wayback Machine lookup the user asked for is running (a few seconds).
-    refetchInterval: (query) => {
-      const items = query.state.data?.pages.flatMap((p) => p.items) ?? []
-      const pending = items.some((b) => b.status === 'pending')
-      const checking = items.some((b) => b.archive_status === 'checking')
-      return checking || (pending && query.state.dataUpdateCount < 40) ? 3000 : false
-    },
+    refetchInterval: (query) =>
+      pollInterval(query.state.data?.pages.flatMap((p) => p.items) ?? [], query.state.dataUpdateCount),
   })
+
+  const earlier = useQuery({
+    queryKey: ['bookmarks', 'earlier', { folder, browser, readState, weekStart, page: earlierPage }],
+    enabled: weekStart !== null,
+    queryFn: () => {
+      const query = withFilters(
+        new URLSearchParams({ section, limit: String(EARLIER_PAGE_SIZE), page: String(earlierPage) }),
+      )
+      query.set('saved_before', weekStart!)
+      return api.get<BookmarkPage>(`/api/bookmarks?${query}`)
+    },
+    // Keep showing the current page while the next one loads, so the sheet doesn't jump.
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) => pollInterval(query.state.data?.items ?? [], query.state.dataUpdateCount),
+  })
+
+  // A page past the end (bookmarks were removed, or an old link): go to the last page instead.
+  const earlierTotal = earlier.data?.total ?? 0
+  const lastPage = Math.max(1, Math.ceil(earlierTotal / EARLIER_PAGE_SIZE))
+  useEffect(() => {
+    if (earlier.isSuccess && !earlier.isPlaceholderData && earlierPage > lastPage) {
+      const next = new URLSearchParams(params)
+      if (lastPage > 1) next.set('page', String(lastPage))
+      else next.delete('page')
+      setParams(next, { replace: true })
+    }
+  }, [earlier.isSuccess, earlier.isPlaceholderData, earlierPage, lastPage, params, setParams])
 
   // Infinite scroll: load the next page when the sentinel below the grid scrolls into view.
   const sentinel = useRef<HTMLDivElement>(null)
@@ -58,6 +91,15 @@ export default function FeedPage({ section }: { section: FeedSection }) {
     const next = new URLSearchParams(params)
     if (value === null || next.get(key) === value) next.delete(key)
     else next.set(key, value)
+    next.delete('page') // a different filter starts Earlier from its first page
+    setParams(next)
+  }
+
+  // The detail panel (?bookmark=<id>): part of the address, so Back closes it.
+  const openId = Number(params.get('bookmark')) || null
+  const closeDetail = () => {
+    const next = new URLSearchParams(params)
+    next.delete('bookmark')
     setParams(next)
   }
 
@@ -65,14 +107,24 @@ export default function FeedPage({ section }: { section: FeedSection }) {
   // First run: no browser has synced anything yet (facets list every browser, even at 0).
   const isFirstRun = facets.isSuccess && facets.data.browsers.length === 0
   const isEmpty = facets.isSuccess && facets.data.total === 0 && !isFirstRun
-  const groups = groupBySaveDate(bookmarks)
+  const editions: Edition[] = groupBySaveDate(bookmarks)
+  if (earlier.data && earlier.data.items.length > 0) {
+    editions.push({ key: 'earlier', title: 'Earlier', items: earlier.data.items })
+  }
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-wrap items-start gap-8 px-6 pt-8 pb-16">
-      <aside aria-label="Filters" className="flex max-w-[260px] flex-[1_1_220px] flex-col gap-7 rounded-2xl bg-panel px-3.5 py-[18px]">
+      <aside
+        aria-label="Filters"
+        className="flex flex-[1_1_220px] flex-col gap-7 rounded-2xl bg-panel px-3.5 py-[18px] wide:max-w-[260px]"
+      >
         <FilterList
           title="Browsers"
-          items={(facets.data?.browsers ?? []).map((f) => ({ ...f, label: f.value, indent: 0 }))}
+          items={(facets.data?.browsers ?? []).map((f) => ({
+            ...f,
+            label: f.value,
+            indent: 0,
+          }))}
           active={browser}
           onSelect={(v) => setFilter('browser', v)}
           capitalize
@@ -85,7 +137,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
         />
       </aside>
 
-      <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-6">
+      <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-3.5 wide:p-6">
         <div className="mb-[22px]">
           <h1 className="font-serif text-[40px] leading-[1.1] font-bold tracking-[-0.015em]">{TITLES[section]}</h1>
           {facets.data && (
@@ -112,32 +164,45 @@ export default function FeedPage({ section }: { section: FeedSection }) {
         {isEmpty && <EmptyState section={section} />}
         {feed.isError && <p className="text-dead-fg">Couldn't load bookmarks: {feed.error.message}</p>}
 
-        <div className="flex flex-col gap-7">
-          {groups.map((group) => (
-            <section key={group.title} aria-label={group.title}>
-              <div className="bg-band flex items-baseline justify-between gap-3 rounded-xl px-[18px] py-[11px] text-on-accent">
-                <h2 className="font-serif text-[19px] font-bold">{group.title}</h2>
-                <span className="text-[13px] text-on-accent2">
-                  {group.items.length} {group.items.length === 1 ? 'bookmark' : 'bookmarks'}
-                </span>
-              </div>
-              <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
-                {group.items.map((b) => (
-                  <li key={b.id}>
-                    <BookmarkCard bookmark={b} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        {/* Everything is a newspaper (board Main): the feed as editions, the two sections as one
+            sheet each. */}
+        {section === 'main' && feed.isPending && !isFirstRun && <FrontPageLoading />}
+        {section === 'main' && (
+          <Newspaper
+            editions={editions}
+            earlier={{ page: earlierPage, total: earlierTotal, pageSize: EARLIER_PAGE_SIZE }}
+            view={readState}
+          />
+        )}
+        {section !== 'main' && bookmarks.length > 0 && (
+          <SectionSheet {...SHEETS[section]} count={facets.data?.total ?? bookmarks.length} items={bookmarks} />
+        )}
 
         <div ref={sentinel} className="py-7 text-center text-sm text-ink2">
-          {(feed.isPending || isFetchingNextPage) && 'Loading more…'}
+          {((section !== 'main' && feed.isPending) || isFetchingNextPage) && 'Loading more…'}
         </div>
       </main>
+      {openId && <BookmarkDetail key={openId} id={openId} onClose={closeDetail} />}
     </div>
   )
+}
+
+/**
+ * Pages are fetched in the background after a sync. While any shown bookmark is still pending,
+ * refetch every few seconds so results appear without a reload; stop after ~2 minutes in case
+ * something stays pending (e.g. the worker is off). Also poll while something the user asked
+ * for is running: a Wayback Machine lookup or a summary (a few seconds each).
+ */
+function pollInterval(items: Bookmark[], updates: number) {
+  const pending = items.some((b) => b.status === 'pending')
+  const asked = items.some((b) => b.archive_status === 'checking' || b.summary_status === 'working')
+  return asked || (pending && updates < 40) ? 3000 : false
+}
+
+// The two section sheets' mastheads (boards FeedSignIn / FeedDead).
+const SHEETS = {
+  sign_in: { title: 'Needs sign-in', line: 'Pages behind an account or a subscription' },
+  dead: { title: 'Dead links', line: 'Pages that no longer load on the web' },
 }
 
 /** Counts for one section. Shared by the page and the views bar (same cache key). */
@@ -146,7 +211,8 @@ function useFacets(section: FeedSection) {
     queryKey: ['facets', section],
     queryFn: () => api.get<Facets>(`/api/bookmarks/facets?section=${section}`),
     // Counts change as pages finish fetching (and may move to another section).
-    refetchInterval: (query) => ((query.state.data?.pending ?? 0) > 0 && query.state.dataUpdateCount < 40 ? 3000 : false),
+    refetchInterval: (query) =>
+      (query.state.data?.pending ?? 0) > 0 && query.state.dataUpdateCount < 40 ? 3000 : false,
   })
 }
 
@@ -154,24 +220,6 @@ const TITLES: Record<FeedSection, string> = {
   main: 'Feed',
   sign_in: 'Needs sign-in',
   dead: 'Dead links',
-}
-
-/** Today / This week / Earlier, by when the bookmark was saved (rows arrive newest first). */
-function groupBySaveDate(bookmarks: Bookmark[]) {
-  const startOfToday = new Date()
-  startOfToday.setHours(0, 0, 0, 0)
-  const weekAgo = startOfToday.getTime() - 6 * 24 * 60 * 60 * 1000
-  const groups = [
-    { title: 'Today', items: [] as Bookmark[] },
-    { title: 'This week', items: [] as Bookmark[] },
-    { title: 'Earlier', items: [] as Bookmark[] },
-  ]
-  for (const b of bookmarks) {
-    const saved = new Date(b.added_at).getTime()
-    const index = saved >= startOfToday.getTime() ? 0 : saved >= weekAgo ? 1 : 2
-    groups[index].items.push(b)
-  }
-  return groups.filter((g) => g.items.length > 0)
 }
 
 /**
@@ -225,7 +273,12 @@ function ViewPill(props: { to: string; current: boolean; label: string; count?: 
   )
 }
 
-type FilterItem = { value: string; label: string; count: number; indent: number }
+type FilterItem = {
+  value: string
+  label: string
+  count: number
+  indent: number
+}
 
 /** Subfolders are indented under their parent when the parent is listed too. */
 function folderItems(folders: FacetCount[]): FilterItem[] {
@@ -288,12 +341,23 @@ function FirstRun() {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-line bg-surface px-8 py-12 text-center">
       <span aria-hidden className="grid size-14 place-items-center rounded-full bg-accent text-on-accent">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M6 3h12v18l-6-4-6 4z" />
         </svg>
       </span>
       <h2 className="mt-1.5 font-serif text-[28px] font-bold">Connect your first browser</h2>
-      <p className="max-w-[460px] text-ink2">Your bookmarks will show up here as a reading list. It takes about a minute.</p>
+      <p className="max-w-[460px] text-ink2">
+        Your bookmarks will show up here as your own front page. It takes about a minute.
+      </p>
       <ol className="mt-3 flex list-none flex-col gap-2.5 p-0 text-left">
         <FirstRunStep n={1}>Add the Bookmark Brain extension to Chrome, Edge, Brave or Firefox.</FirstRunStep>
         <FirstRunStep n={2}>
@@ -323,7 +387,10 @@ function FirstRun() {
 function FirstRunStep({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <li className="flex items-center gap-3">
-      <span aria-hidden className="grid size-7 flex-none place-items-center rounded-full bg-accent text-[13px] font-semibold text-on-accent">
+      <span
+        aria-hidden
+        className="grid size-7 flex-none place-items-center rounded-full bg-accent text-[13px] font-semibold text-on-accent"
+      >
         {n}
       </span>
       <span className="text-ink2">{children}</span>
@@ -357,7 +424,16 @@ function EmptyState({ section }: { section: FeedSection }) {
   return (
     <div className="flex flex-col items-center rounded-xl border border-line bg-surface px-6 py-10 text-center">
       <span aria-hidden className="grid size-12 place-items-center rounded-full bg-accent text-on-accent">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="m5 12 4.5 4.5L19 7" />
         </svg>
       </span>

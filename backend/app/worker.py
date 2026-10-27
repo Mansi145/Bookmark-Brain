@@ -22,12 +22,14 @@ import httpx
 from sqlalchemy import and_, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.ai import chains
 from app.db import SessionLocal
 from app.models import Document, DocumentStatus, Job, JobStatus
 from app.services import archive, fetch
 from app.services.access import PAYWALL, detect_access, is_paywalled
 from app.services.extract import extract_article
 from app.services.icons import default_icon, find_icon
+from app.services.preview import find_preview_image
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +100,7 @@ async def fetch_page(session: AsyncSession, job: Job, http: httpx.AsyncClient) -
     has_article = False
     if page.html is not None:
         document.icon_url = find_icon(page.html, page.url)
+        document.image_url = find_preview_image(page.html, page.url)
         has_article = await _read_article(document, page.html, "page")
     document.access = detect_access(document.url, page, has_article)
 
@@ -107,6 +110,23 @@ async def fetch_page(session: AsyncSession, job: Job, http: httpx.AsyncClient) -
         _finish(document, DocumentStatus.dead)
     else:
         _finish(document, DocumentStatus.failed)
+
+
+async def find_image(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
+    """Look up the preview image of a page fetched before images were stored (migration 0007).
+
+    Downloads the page again but only saves image_url, so the page's text, section and
+    summary stay as they are. Gives up quietly: a missing image just means a text-only lead.
+    """
+    document = await session.get(Document, job.payload["document_id"])
+    if document is None or document.image_url is not None:
+        return
+    try:
+        page = await fetch.fetch_page(document.url, http)
+    except (fetch.BlockedUrl, fetch.TemporaryFetchError):
+        return
+    if page.html is not None and page.status_code < 400:
+        document.image_url = find_preview_image(page.html, page.url)
 
 
 async def find_archive(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
@@ -153,6 +173,62 @@ async def _read_article(document: Document, html: str, source: str) -> bool:
     return True
 
 
+# Someone is watching "Summarising…", so a failing summary is retried once (after 30 s), not
+# for 10 minutes. Waiting for the page itself to be fetched first is capped too.
+SUMMARY_ATTEMPTS = 2
+WAIT_FOR_PAGE = timedelta(minutes=2)
+
+
+async def summarise(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
+    """Write the AI summary for one document (a user clicked Summarise or Re-summarise).
+
+    Uses the best text we have: the page's text, a Wayback copy's text for a dead link, or
+    only the title and description (JavaScript apps, bot-protected pages). Sets
+    summary_status to "done" or "failed"; summary_source records which text was used.
+    """
+    document = await session.get(Document, job.payload["document_id"])
+    if document is None:
+        return
+    # The page's own title, else the one the user saved the bookmark under.
+    title = document.title or job.payload.get("title") or document.url
+
+    if document.status == DocumentStatus.pending:
+        # The page is still being fetched; its text makes a much better summary.
+        if datetime.now(UTC) - job.created_at < WAIT_FOR_PAGE:
+            raise RetryLater(5, "waiting for the page to be fetched")
+
+    text = document.content_text
+    if document.status == DocumentStatus.dead and document.content_source != "archive":
+        text = None  # the old live text (if any) isn't what the user is looking at now
+    source = document.content_source if text else "metadata"
+
+    try:
+        result = await chains.summarise_document(
+            title=title,
+            site=document.site,
+            text=text,
+            description=document.description,
+            trace={"document_id": document.id, "source": source},
+        )
+    except chains.BadAnswer as err:
+        # A usable model gave an unusable answer; asking again rarely helps much.
+        log.warning("Summary for document %s rejected: %s", document.id, err)
+        document.summary_status = "failed"
+        return
+    except Exception:
+        if job.attempts < SUMMARY_ATTEMPTS:
+            raise  # both models failed (quota, outage): the queue retries in 30 s
+        document.summary_status = "failed"
+        return
+
+    document.summary = result.summary
+    document.key_points = result.key_points
+    document.summary_source = source
+    document.summary_model = result.model
+    document.summarised_at = datetime.now(UTC)
+    document.summary_status = "done"
+
+
 def _finish(document: Document, status: DocumentStatus, guess_icon: bool = True) -> None:
     document.status = status
     document.fetched_at = datetime.now(UTC)
@@ -165,6 +241,8 @@ def _finish(document: Document, status: DocumentStatus, guess_icon: bool = True)
 HANDLERS: dict[str, Handler] = {
     "fetch_page": fetch_page,
     "find_archive": find_archive,
+    "summarise": summarise,
+    "find_image": find_image,
 }
 
 

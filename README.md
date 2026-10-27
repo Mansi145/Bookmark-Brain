@@ -12,7 +12,7 @@ It's a personal learning project for integrating AI agents into a real full-stac
 |---|---|---|
 | 0 | Foundations: monorepo, FastAPI, Postgres + pgvector, Alembic, React app | ✅ Done |
 | 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
-| 2 | Background job queue ✅, page fetching + AI summaries (Gemini, Groq fallback) | 🚧 In progress |
+| 2 | Background job queue, page fetching, on-demand AI summaries (Gemini, Groq fallback) | ✅ Done |
 | 3 | Hybrid search: keyword + semantic (embeddings) | Planned |
 | 4 | "Ask your bookmarks" chat agent (LangGraph) | Planned |
 | 5–7 | Auto-tags, dead-link checks, reading status, weekly digest | Planned |
@@ -29,7 +29,7 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
  React app ──(session cookie, REST)──► FastAPI ──► Postgres (+ pgvector)
                                           │
                                           │
-                       in-process job worker (jobs table): fetch page → summarise → embed
+                       in-process job worker (jobs table): fetch page → summarise (on demand) → embed
                                           ▼
                               Gemini ──fallback──► Groq
 ```
@@ -38,8 +38,8 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
 - **The backend** normalises URLs (lower-cases the host, drops tracking parameters like `utm_*` and `#fragments`), so the same article saved in two browsers becomes **one** bookmark with two sources. A bookmark disappears only when no browser has it any more.
 - **Documents are shared, bookmarks are per user.** Each unique URL is stored once, so the AI work for it (summary, embedding) only has to happen once, however many people saved it.
 - **Sign-in:** the web app signs in with Google and gets an httpOnly session cookie. The extension uses a personal access token that it receives through **one-click connect**: the popup opens the web app's `/connect` page, which creates the token and hands it to the extension. Only a hash of the token is stored.
-- **Slow work runs in the background.** Fetching pages and (soon) AI summaries run as rows in a `jobs` table, processed by a worker inside the API. Syncs stay fast, jobs survive restarts, and failures are retried. The server only fetches public addresses, so a bookmark can't make it probe its own network.
-- **Text first.** The feed is a reading list grouped by when you saved things; there are no preview images.
+- **Slow work runs in the background.** Fetching pages and AI summaries run as rows in a `jobs` table, processed by a worker inside the API. Syncs stay fast, jobs survive restarts, and failures are retried. The server only fetches public addresses, so a bookmark can't make it probe its own network.
+- **A newspaper, text first.** The feed is your own front page: editions by when you saved things, the newest unread stories biggest, and only the top story shows the page's own preview image.
 
 ## Tech stack
 
@@ -73,7 +73,7 @@ bookmark_brain/
 │   └── src/
 │       ├── api/              fetch client + types
 │       ├── pages/            Login (sign-up), HowItWorks, Feed, Settings, Connect
-│       ├── components/       Layout, BookmarkCard (feed row), Logo, Nebula (texture), SignInButtons
+│       ├── components/       Layout, Newspaper (the feed's front page), StoryParts, BookmarkDetail, Logo, Nebula (texture), SignInButtons
 │       └── hooks/            useMe (current user)
 ├── extension/                Browser extension (WXT)
 │   ├── entrypoints/          background worker, popup, /connect content script
@@ -122,9 +122,12 @@ The API runs at http://localhost:8000, with the background job worker running in
 | `JWT_SECRET` | sign-in | generate with `openssl rand -hex 32` |
 | `GOOGLE_CLIENT_ID` | sign-in | your OAuth client ID |
 | `GOOGLE_API_KEY` | Phase 2+ | Gemini key from Google AI Studio |
+| `GEMINI_MODEL` / `GROQ_MODEL` | optional | override the models (defaults `gemini-3.5-flash-lite` / `openai/gpt-oss-120b`) |
 | `GROQ_API_KEY` | Phase 2+ | fallback model |
 | `LANGSMITH_API_KEY` | Phase 4 | optional tracing |
 | `AI_DAILY_LIMIT_PER_USER` | Phase 2+ | protects the free-tier quota |
+| `RESEND_API_KEY` / `MAINTAINER_EMAIL` | optional | "Notify the maintainer" in the Limit reached dialog ([Resend](https://resend.com), free 100 emails a day). Without your own domain, `MAINTAINER_EMAIL` must be the address you signed up to Resend with. `EMAIL_FROM` overrides the sender |
+| `DEV_TOOLS` | local only | `true` turns on `/api/usage/dev/*`, which the dev build's "Dev tools" box uses to use up or reset today's AI limit (to try the Limit reached dialog). Never in production |
 | `WORKER_ENABLED` | optional | `false` runs the API without the background job worker (default `true`) |
 
 In production also set `SESSION_COOKIE_SECURE=true` and `SESSION_COOKIE_SAMESITE=none`, because the frontend and API are on different domains.
@@ -201,10 +204,17 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET / POST | `/api/tokens` | cookie or token | list / create extension tokens |
 | DELETE | `/api/tokens/{id}` | cookie or token | revoke a token |
 | POST | `/api/sync` | cookie or token | full or incremental bookmark sync from the extension |
-| GET | `/api/bookmarks` | cookie or token | feed, newest first; `limit`, `cursor`, `folder`, `browser`, `section` (`main` / `sign_in` / `dead`), `read_state` |
+| GET | `/api/bookmarks` | cookie or token | feed, newest first; `limit`, `cursor`, `folder`, `browser`, `section` (`main` / `sign_in` / `dead`), `read_state`, `saved_after` / `saved_before` (the newspaper's week split), `page` (numbered pages with a `total`, for Earlier) |
 | GET | `/api/bookmarks/facets` | cookie or token | counts for a `section`: total, pending, unread/read, folders and browsers |
 | GET | `/api/bookmarks/sync-summary` | cookie or token | what one `browser` has sent so far (Connect page): bookmarks, folders, the last 4 received, other browsers |
 | POST | `/api/bookmarks/{id}/find-archive` | cookie or token | look up a dead link on the Wayback Machine (queues a job) |
+| GET / PATCH | `/api/bookmarks/{id}` | cookie or token | one bookmark (detail panel) / mark it read or unread |
+| POST | `/api/bookmarks/{id}/summarise` | cookie or token | AI summary on demand (`again=true` to redo); cached per URL, counted against the daily limit |
+| GET | `/api/usage` | cookie or token | today's summaries used, the daily limit, when it resets |
+| GET | `/api/account` | cookie only | what deleting the account would remove: bookmark and connected-browser counts |
+| GET | `/api/account/export` | cookie only | Download my data: a JSON file (bookmarks, where they're saved, read states, summaries, connected browsers; never token secrets) |
+| DELETE | `/api/account` | cookie only | delete the account and everything personal (body `{"confirm": "DELETE"}`); shared per-URL pages and summaries stay |
+| POST | `/api/usage/notify-maintainer` | cookie or token | email the owner that this user hit today's limit (once a day per user; 409 if not at the limit, 503 if email isn't set up, 502 if Resend refused) |
 
 ## Troubleshooting
 

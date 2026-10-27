@@ -5,6 +5,122 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Account menu, Settings → Account and Earlier's pages
+
+#### Added
+- **Earlier is paginated** (design board Main, owner): 30 briefs a page in save-date order, newest first, and under them a pager: "Showing 31–60 of 189 · newest first", ‹ Newer, page numbers (the current one on accent), an ellipsis for skipped pages, the last page and Older ›. The page is in the address (`?page=2`) and keeps the other filters; changing a filter goes back to page 1; paging scrolls back to the top of Earlier and keeps the old page on screen until the new one arrives. A page past the end (an old link) goes to the last page. The pager only shows when there's more than one page. Today and This week still load by scrolling.
+- **`GET /api/bookmarks` takes `saved_after` / `saved_before`** (the feed splits at the start of the week, sent as an exact moment so the browser and the server agree) and **`page`**: numbered pages with OFFSET and a `total`, because keyset paging can't jump to page 7.
+- **Account menu** (design boards AccountMenu / AccountMenuDark): the round account button (`aria-haspopup="menu"`) opens a 272 px card with your name and email, Settings, a **Dark mode** switch and Sign out (How it works stays a link in the top bar, owner). Closes on Escape, a click outside or Tab; arrow keys move between items. Shows your Google picture when you have one, else your initial.
+- **Settings → Account** (design boards SettingsAccount / SettingsAccountDark / SettingsAccountDelete), switched from the Settings menu (`/settings?section=account`):
+  - **Your account**: picture or initial, name, email, "Signed in with Google", Sign out.
+  - **Download my data**: `GET /api/account/export`, a JSON file with every bookmark (title, URL, site, saved date, read state, which browsers and folders have it, summary and key points) and the connected browsers (names and dates only, never token secrets).
+  - **Delete account**: a confirmation dialog with the real counts (`GET /api/account`) that stays off until DELETE is typed, then `DELETE /api/account` (`{"confirm": "DELETE"}`, checked on the server too). Deleting the user row removes everything personal through the database's cascades (bookmarks, which browser has each, extension tokens, AI usage) and signs you out; the shared per-URL pages and summaries stay.
+- **Account actions only from the web app** (`WebUser`): export and delete accept only the session cookie, never an extension token, so a leaked extension token can't download or wipe the account.
+- **`onDead` colour** for text on a deadFg fill (white in light, `#1F1C1A` in dark).
+
+#### Changed
+- **Settings left the top bar's tabs** (owner): it's in the account menu, so the tabs are just Feed for now.
+- **The light / dark button left the top bar**; the switch lives in the account menu. The theme still follows the system until changed, and the choice is remembered.
+- **The top bar's texture is clipped on its own layer**, so the account menu can hang below the bar.
+
+#### Notes
+- If deleting fails, "Couldn't delete your account. Please try again." replaces the hint under the dialog's buttons (added in the build so a failure isn't silent, then approved on board SettingsAccountDeleteError).
+- The logo animations (five, one per job) are designed but not built yet.
+
+### Open summary on briefs, dev tools, warm charcoal dark mode, read stories in place and every feed screen as a newspaper
+
+#### Added
+- **Open summary** (owner): a brief whose summary is ready shows an *Open summary* button where Summarise was, opening the detail panel. Before, the button just disappeared, because briefs never show the summary itself.
+- **Dev tools box** (local testing only, not a designed screen): bottom left in `npm run dev`, with *Use up today's limit* and *Reset*, to try the Limit reached dialog and its email without making 50 real summaries. Reset also lets the maintainer email be sent again. It's left out of production builds, and its endpoints (`POST /api/usage/dev/use-up`, `/dev/reset`) answer 404 unless `DEV_TOOLS=true`.
+
+#### Changed
+- **Site line first** (owner): in the newspaper, each story's site logo, site, read time and age now sit at the top of the story, above the folder label and headline (under the lead's image).
+- **Warm charcoal dark mode** (design, owner): the dark theme's near-black greys are replaced by lifted, slightly warm ones with off-white text (page `#1F1C1A`, panels `#262220`, cards `#2D2926`, lines `#423B36`, text `#EEE8E2` / `#CEC5BC` / `#ACA298`), in the web app and the extension popup. Accents, the texture and the dead-link colours are unchanged.
+- **In All bookmarks, a story marked read stays where it is** (design board MarkAsRead): same place, same look, only the panel's button changes to Mark as unread. It joins the other read stories, faded and last, the next time the page loads. Unread → Read still fades and folds the story out.
+- **Read stories are faded in the Read view too**, as on the board (they already were in All bookmarks).
+- **Needs sign-in and Dead links are newspaper sheets** (design boards FeedSignIn / FeedDead): one sheet each with a small masthead ("Pages behind an account or a subscription" / "Pages that no longer load on the web", and the count), then standard stories in ruled rows of three, each with its state line. They replace the date-grouped list cards (`BookmarkCard` is gone; its state lines moved to `StoryParts.tsx`).
+- **Story states in the newspaper style** (design board Story states): every story shows its page state under the headline (Fetching page…, Couldn't read this page, Needs sign-in, Subscribers only, the dead-link flow with *Find archived copy*), as a 14 px line with a 15 px icon. Until a story has a summary, the site's own description shows in its place, with Summarise under it (not on briefs). The Fetching and Summarising pills now have a pulsing bar under them (still with reduced motion).
+- **Loading front page** (design board FeedLoading): while the first page of the feed loads, the front page's shape in pulsing bars and "Loading your front page…".
+- **Phone width** (design boards FeedPhone / FeedPhoneDark): at 760 px and below every newspaper column stacks into one with horizontal dividers, sheets have 18 px padding, mastheads are 30 px (small ones 24 px), the sidebar goes full width and the main panel's padding is 14 px. One breakpoint (`wide:`, 761 px and up) replaces the old two-column step.
+- **First run** says "Your bookmarks will show up here as your own front page."
+- **Sign-up preview and How it works** (design boards Login / HowItWorks): the preview card is now a mini front page (band rule, today's date, "Today's edition", a lead with its summary beside two briefs, one with Summarise), shared by a new first How it works feature, "Your own front page". How it works copy: step 3, the Summaries feature and Dead link checks now match the board.
+
+### New logo, the Limit reached dialog and the free-plan note
+
+#### Added
+- **Limit reached dialog** (design board LimitDialog): opens when Summarise or Re-summarise is refused because today's AI allowance is used up. It explains why and when it comes back (midnight UTC), and **Notify the maintainer** emails the owner the user's account email and the time they hit the limit. States: default, Sending…, "Thanks, the maintainer knows". If the email fails the button simply comes back; there's no "couldn't send" screen.
+- **`POST /api/usage/notify-maintainer`**: sends that email through [Resend](https://resend.com) (`app/services/mail.py`, one HTTPS call; free plan 100 emails a day). Only for users who really are at the limit (409 otherwise), and at most once per user per day: a second press answers 204 without sending, which keeps the email quota safe. Claimed and set in one SQL statement so a double click sends one email; if Resend refuses, the claim is undone so the user can try again (502). Off without `RESEND_API_KEY` / `MAINTAINER_EMAIL` (503). Sent in the request, not as a job, so the dialog only says "sent" once it has.
+- **`ai_usage.limit_reached_at` and `maintainer_notified_at`** (migration `0008`): when each user was first refused that day and when they told the maintainer, so the owner can see who runs out and when.
+- **Free-plan note** under the detail panel's buttons: "Bookmark Brain is a personal learning project on free plans. AI features share a small daily limit and may stop early." (`FreePlanNote`, ready for the Ask composer.)
+
+#### Changed
+- **New logo, "Masthead BB"** (design board LogoFinal): a backwards B and a B sharing one spine, between newspaper rules on a cream tile, the same in both themes. The full version (64 px and up) is on the sign-up page; the small one is in the top bars, Connect, the error pages, the extension popup, the favicon and the 16/32/48 px extension icons (128 px uses the full version). Replaces the brain logo everywhere.
+- **Summarise on a brief opens the detail panel** (owner): briefs never show a summary, so before this the button just disappeared when the summary finished and nothing seemed to happen. The panel opens once the server has accepted the request (so at the daily limit only the Limit reached dialog shows) and the summary appears there as it arrives. Bigger stories still show theirs in place.
+- **At the daily limit, Summarise and Re-summarise stay clickable** and open the Limit reached dialog, instead of being disabled with "Daily summary limit reached · resets at midnight UTC" (design board Story states). The unused `useUsage` hook is gone; `GET /api/usage` stays.
+- **Newspaper briefs** match the board more closely: they come in rows of four, each row with a full-width rule above it; briefs use a smaller Summarise button (32 px, 13 px text) and an 18 px site-icon chip; the lead's summary is 18 px.
+
+#### Fixed
+- **A title with no spaces (a bare URL) no longer spills into the next column**: bookmark titles in the newspaper, the lists and the detail panel break inside a word that's too long for its column.
+
+#### Notes
+- Designed but not built yet: what Earlier's "N more from earlier" button does (waiting for the owner), and search (Phase 3).
+
+### AI summaries, the bookmark detail panel and the newspaper feed
+
+#### Added
+- **Newspaper feed** (design board NewsClassic): the main feed is now a classic front page.
+  - **Editions:** Today, This week and Earlier are editions, each one sheet with a masthead (band rule, Aleo title between the date and the counts, double rule) and thin column rules instead of a card per story.
+  - **Story sizes:** newest unread stories are biggest (lead → seconds → standards → briefs), and read ones go last, faded. The first edition gets the front-page layout; Earlier is all briefs.
+  - **Summary length per size:** a lead shows its whole summary, a second 5 lines, a standard 3, and a brief none. A story without a summary shows its Summarise button.
+  - **Columns:** one on phones, two on small screens, the full grid on wide ones.
+  - **Other sections:** Needs sign-in and Dead links keep the list until they're redesigned.
+- **Preview image on the top story only** (`services/preview.py`): `og:image` / `twitter:image` from the page's `<head>`, stored as `documents.image_url` while the page is fetched. The browser loads it from the site, so our server never downloads images; if it fails, the lead is text-only. Captioned "Image from <site>". Migration `0007` adds the column and queues a new `find_image` job for pages fetched before, which reads the page again but only stores the image (text, section and summary untouched).
+- **`app/ai/llm.py`**, the one place that talks to models, chaining free providers with LangChain's `.with_fallbacks()`:
+  - Gemini `gemini-3.5-flash-lite`
+  - Gemini `gemini-2.5-flash`, with its own free quota on the same key
+  - OpenRouter's free `nvidia/nemotron-3.5-super-vl:free`
+  - NVIDIA NIM, which hosts DeepSeek (`deepseek-ai/deepseek-v4.1-flash`) for free
+  - Groq `openai/gpt-oss-120b`
+
+  Providers without a key (`OPENROUTER_API_KEY`, `NVIDIA_API_KEY`) are skipped. An answer that doesn't fit the schema also moves on to the next model. `get_structured_model(Schema)` returns typed answers instead of text to parse, and reports which model answered. Model names are settings (`GEMINI_MODEL`, `GROQ_MODEL`); each client retries once and times out after 45 s, so the fallback kicks in fast.
+- **Summarise chain** (`app/ai/chains.py`, prompt in `app/ai/prompts/summarise.md`): a short paragraph (5–6 sentences, about 800 characters) plus 3–5 key points. The page goes in `<article>` tags and the prompt treats it as data, not instructions (bookmarked pages are untrusted). Input is capped at 12,000 characters; answers that are empty, unparseable or far too long are rejected.
+- **`summarise` job**: uses the page's text, a Wayback copy's text for a dead link, or only the title and description. It waits up to 2 minutes for a page that's still being fetched, retries a model failure once, then shows "Couldn't summarise this page." Records `summary_source` and `summary_model` (stored, never shown).
+- **`POST /api/bookmarks/{id}/summarise`** (`?again=true` for Re-summarise). Summaries are cached per URL, so one someone already made comes back at once and costs nothing. Otherwise it counts towards the per-user daily limit (`AI_DAILY_LIMIT_PER_USER`, default 50; 429 "Daily summary limit reached"), checked and counted in a single SQL statement so two quick clicks can't both slip under it. Dead links need an archived copy first (409).
+- **`GET /api/usage`**: today's summaries used, the limit, and when it resets (midnight UTC).
+- **`PATCH /api/bookmarks/{id}`** (`read_state`) and **`GET /api/bookmarks/{id}`** for the detail panel. `BookmarkOut` gains `description`, `summary`, `key_points` and `summary_status`.
+- **Migration `0006`**: `documents.summary`, `key_points`, `summary_status`, `summary_source`, `summary_model`, `summarised_at`, and the `ai_usage` table.
+- **Feed rows**:
+  - the summary, or the site's own description, in two lines
+  - a Summarise button with Summarising… / failed + Try again / daily-limit states
+  - on dead links, Summarise appears once an archived copy is found
+  - the feed keeps refreshing while a summary is being made
+- **Bookmark detail panel**: clicking a row's title opens a 480 px panel (full screen on phones) over a dark backdrop. It's part of the address (`?bookmark=`), so Back closes it. It shows:
+  - the site, title and when it was saved
+  - Open page, Mark as read / unread, and Re-summarise
+  - the summary and key points; before a summary, the site's description, a line saying so, and the Summarise button
+  - where the bookmark is saved, and the full URL
+
+  Escape or the backdrop closes it.
+- **Mark as read / unread**: in the Unread view the story fades and folds out (about 250 ms; at once with reduced motion) and appears under Read, where *Mark as unread* moves it back the same way. The cached feed updates straight away, then refreshes with the new counts. Opening a bookmark never marks it read.
+- **Tests**: with a fake model, so nothing reaches Gemini or Groq. They cover:
+  - summarising page text, with the prompt framing checked
+  - shared summaries being free for other users
+  - Re-summarise, and the daily limit
+  - the title-and-description fallback
+  - dead links needing a copy
+  - retry-then-fail and rejected answers
+  - the input budget, mark read / unread, and getting one bookmark
+
+#### Decided
+- **Model choice:** `gemini-3.5-flash-lite` became the main model after a live comparison. `gemini-3.5-flash` returned 503 "high demand" on 3 of 4 calls, while the lite model and `gemini-2.5-flash` answered every time. A two-sentence summary doesn't need the bigger model, and lite models usually get the largest free quota.
+- **More free models, and DeepSeek:** DeepSeek's own API has no free tier (pay-as-you-go), and no free DeepSeek is listed on OpenRouter. NVIDIA NIM hosts it for free, so it joins the chain there. Mistral's free tier was left out because it requires opting into training on your data.
+- **Preview images are back, for one spot only:** the owner reversed the no-`og:image` rule for the newspaper's lead story. Everywhere else stays image-free apart from site logos.
+- **Summary length:** a short paragraph instead of two sentences (owner: the summary looked too short). Feed rows still show two lines; the detail panel shows it all.
+- **Input size:** article input is 12,000 characters, not 24,000. Groq's free tier allows only 8,000 tokens a minute, and a full-length page used about 6,300 of them.
+
+#### Notes
+- Not built yet: the detail panel's Tags (Phase 5), the free-plan note and the "Limit reached" dialog (need an email service), and trying Gemini's URL-reading tool for pages we couldn't fetch. Settings' "AI usage" section was dropped (owner: users shouldn't see AI usage).
+
 ### UI: first pass of the new design
 
 #### Added
@@ -30,6 +146,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Not built yet, all designed: the Summarise button and the bookmark detail panel (next step), search (Phase 3), the Ask page (Phase 4), tags (Phase 5), the Digest page (Phase 7), sorting, the row "⋯" menu, and Settings' AI usage and Account sections. The Ask and Digest tabs join the top bar when their pages exist.
 
 ### Design (canvas)
+- Weekly digest redesigned as a newsletter: back-issue tabs instead of the sidebar, one centred sheet with a masthead, the AI overview as an editor's note with a drop cap, a section per theme with stories that open the detail panel (Summarise / Open summary like feed briefs), and a footer. Not built yet.
+- Logo animations for searching (Lens) and the Wayback Machine (Hourglass); Settings moved out of the top-bar tabs into the account menu; How it works left the account menu; delete-account error line.
+- Logo animations: Page back while summarising, Rewind while a page loads, Conversation while Ask works. Not built yet.
+- Stories start with their source line; briefs get Summarise / Open summary buttons that open the detail panel; Earlier is paginated, newest first.
+- Account menu with name, Settings, How it works, a dark-mode switch and Sign out (the theme button left the top bar); Settings → Account with profile, sign out, download my data and delete account (typed confirmation). Not built yet.
+- Softer "warm charcoal" dark mode everywhere; every feed screen rebuilt as the newspaper front page (sections, story states, search, loading, phone width); sign-up preview and How it works updated to match. Not built yet.
+- Connect states 7–9 wording approved.
+- Limit reached dialog has no "couldn't send" state.
+- Final logo: Masthead BB (mirrored BB between newspaper rules), now on every screen; the old brain logo is kept for reference. Mark as read: no undo notice; in All bookmarks a read story stays in place.
+- Mark as read moves a story to Read with a Mark as unread button; logo direction chosen (Masthead BB), not rolled out yet.
+- Opening a bookmark no longer marks it read; detail panel 'not summarised yet' state; AI usage removed from Settings; newspaper summary lengths per story size; logo directions with a BB monogram (exploration).
+- Feed redesigned as a classic newspaper front page (editions, newest unread biggest, image on the top lead only); a free-plan note next to AI actions; a 'Limit reached' dialog that lets each user notify the maintainer. Not built yet.
 - Phase 2 feed design: three sections (Feed · Needs sign-in · Dead links) under a top bar on the dark texture with the tabs, a How it works link and the account menu; the new section is named "Dead links"; the "Archived" reading state was later removed (reading states are Unread and Read); archive.org is only looked up from a dead row's "Find archived copy" button; empty states; on-demand Summarise button with working / failed / daily-limit states; row states with icons; no source or trust labels anywhere (owner's decision); accents: the owner's rule is to use only the dark Nude colours (`#503931`, `#564D3A`) with white text, never light tints; every group band uses the gradient. Reading states and the two sections share one views bar above the list (not the sidebar or top nav; the top tabs are Feed · Ask · Settings); the sidebar has only Browsers and Folders; the How it works page and the landing preview card use the dark accents too. Boards: `Main` (with a `section` setting), `FeedSignIn`, `FeedDead`, `FeedSignInEmpty`, `FeedDeadEmpty`, `RowStates`, `FeedDark`.
 - The brand texture is now the dark version of Figma's Nude gradient (`#503931 → #564D3A`) with white text on it, replacing the light blue → pink Cloudlifter texture.
 - The landing page was split into a one-screen sign-up page and a separate How it works page.

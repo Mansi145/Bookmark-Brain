@@ -8,7 +8,7 @@ This is a learning project to understand how AI agents are integrated into real 
 |---|---|---|
 | 0 | Foundations | ✅ Done |
 | 1 | Google sign-in, extension sync, feed | ✅ Done, plus one-click extension connect and the extension icon |
-| 2 | Page fetching + AI summaries | 🚧 In progress: job queue, safe fetcher, `fetch_page` + `find_archive` (article text, reading time, Needs sign-in and Dead links sections) done; next is `ai/llm.py` and the on-demand Summarise button |
+| 2 | Page fetching + AI summaries | ✅ Job queue, safe fetcher, `fetch_page` + `find_archive` (article text, reading time, Needs sign-in and Dead links sections), on-demand summaries (`ai/llm.py`, `summarise` job, daily limit) and the bookmark detail panel |
 | 3–8 | Search, agent, tags, dead links, digest, deploy | Planned |
 | UI | Apply the final design (below) to the React app; GitHub sign-in | Planned |
 
@@ -28,10 +28,10 @@ This is a learning project to understand how AI agents are integrated into real 
 | Hosting | **Render** (API) + **Neon** (Postgres + pgvector) + **Vercel** (frontend). Free tier; cron-job.org pings `/health` every 10 min to stop Render sleeping | $0. The ping avoids the 30–50s cold start and keeps the background worker running. |
 | Background jobs | **`jobs` table + in-process asyncio worker** (4 loops, `SELECT … FOR UPDATE SKIP LOCKED`), started from the FastAPI lifespan | No Redis or Celery needed (Render's free tier has no worker service). Jobs survive restarts; retries with back-off (30 s, 2 min) then `failed` after 3 attempts; a job stuck `running` for 10 min is taken over. Slow work never runs inside a request: it would make sync take minutes, hit request time limits, and let one slow site break everything. |
 | Fetching pages | **`app/services/fetch.py`**: one HTTP client that refuses private/loopback/link-local addresses on every request and redirect | The server fetches URLs users choose, so without this a bookmark like `http://localhost:5432` or a cloud metadata address could make it probe its own network (SSRF). |
-| Summaries | **On demand**: a *Summarise* button on every bookmark; nothing is summarised automatically. Results are cached per URL | Saves the shared free-tier quota for pages someone actually wants summarised. For pages without stored text, the summariser can ask Gemini to read the URL itself; every summary records its source (page / archive / Gemini / link only) so the UI can say how much to trust it. |
+| Summaries | **On demand**: a *Summarise* button on every bookmark; nothing is summarised automatically. Results are cached per URL | Saves the shared free-tier quota for pages someone actually wants summarised. Pages without stored text are summarised from their title and description. Every summary records its source (page / archive / metadata), but the UI shows them all the same way (owner's decision: badges made the app look unreliable). |
 | Needs sign-in | Pages that need an **account or subscription** (sign-in redirects, password forms, logged-in web apps, `isAccessibleForFree: false`) get their own **Needs sign-in** section | We fetch anonymously, so these only ever show a sign-in screen. Detection uses signs sites leave, without network calls; bot challenges (403) are not sign-in. These URLs are never sent to archive.org, since they may be private. |
 | Dead links | Pages that are **dead (404/410)** live in a separate **Dead links** section, never in the main feed. The Wayback Machine is asked **only when the user clicks "Find archived copy"** on a dead row | Keeps the feed about pages that work today. Automatic lookups sent many URLs to a third party and hit archive.org's rate limits; on demand, a user chooses each lookup. Private-looking URLs are never sent. |
-| Preview images | **None.** We don't fetch or show `og:image` | Many bookmarks (docs, references) have no image or a generic logo; hotlinked images break or get blocked; an image block takes a third of the card. The feed is a text-first reading list instead. |
+| Preview images | **Only on the top story.** The page's `og:image` URL is read while fetching; the reader's browser loads it from the site | Many bookmarks (docs, references) have no image or a generic logo, so the feed stays text-first; one image on the lead makes the front page look like a newspaper. If it fails to load, the lead is text-only. |
 | Quota protection | Summaries/embeddings cached **per URL** (shared across users); per-user daily AI limits | Free quotas are per API key, so every user shares the same daily limit. |
 | Repo | One monorepo for backend, frontend and extension | Shared docs, one PR per feature across all three, simpler for a solo project. |
 
@@ -40,9 +40,9 @@ Designs live on the Claude design canvas (https://claude.ai/artifact/88oGw1iJQJW
 - **Brand texture**: a dark "Nude" nebula (blurred warm-brown circles over `#503931 → #564D3A` with film grain) with white text on it, used everywhere: the sign-up, How it works, Connect and error pages, the app's top bar and the extension popup header (replaced the earlier blue → pink Cloudlifter texture on 2026-10-23).
 - **Backgrounds**: never pure white. Three off-white layers: page `#ECEAE7` → panels `#F5F4F2` behind the filters and the feed → a card `#FBFAF8` per article. Near-black text.
 - **Accents**: always the dark Nude colours (`#503931`, `#564D3A`) with white text, never light tints, in both themes. **Fonts**: Aleo (headings, titles), Geist (UI). Light and dark themes: follows the system, with a toggle in the top bar.
-- **Logo**: a cute brain on a bookmark ribbon, line art with a radial Mulberry fill. Also the extension icon. Its colours on the dark texture are still to be chosen.
+- **Logo**: "Masthead BB", a backwards B and a B sharing one spine, between newspaper rules on a cream tile (same in both themes). A full version for 64 px and up and a small one for top bars, the popup, the favicon and the extension icons.
 - **Sign-up page**: one screen on the texture with "Saved it? Now actually use it.", dark Google + GitHub sign-in buttons with the real marks, an image-free preview of the feed, and a link to a separate **How it works** page (steps, features, closing call to action).
-- **App**: top nav Feed · Ask · Digest · Settings. The feed is a filter sidebar (Browsers, Folders, Tags) plus an image-free **reading list** grouped by save date (Today / This week / Earlier) under dark bands, with a bar for All · Unread · Read | Needs sign-in · Dead links. Each row: site logo · site · folder · browser · age, Aleo title, two-line summary or a **Summarise** button, reading time. Clicking a row opens a detail side panel. Search results replace the feed; Ask is a chat with a sources rail; Digest is a weekly page.
+- **App**: top nav Feed · Ask · Digest · Settings. The feed is a filter sidebar (Browsers, Folders, Tags) plus a **newspaper front page**: Today / This week / Earlier are editions (one sheet each, a masthead, thin column rules), the newest unread stories are biggest (lead → second → standard → brief) and read ones go last, faded. A bar above it switches All · Unread · Read | Needs sign-in · Dead links; those two sections are one sheet each. Each story: site logo · site · read time · age, Aleo headline, its state line, the summary (full on the lead, fewer lines as stories get smaller, none on briefs) or a **Summarise** button. Clicking a headline opens a detail side panel. One column at 760 px and below. Search results replace the feed; Ask is a chat with a sources rail; Digest is a weekly page.
 - **Later**: logo colour, a logo animation while searching / summarising / checking the Wayback Machine, and a softer dark-mode background.
 
 ## Architecture
@@ -80,7 +80,7 @@ bookmark_brain/
 ├── frontend/src/
 │   ├── api/                     fetch client + types (mirror schemas.py)
 │   ├── pages/                   Login, Feed, Settings, Connect
-│   ├── components/              Layout, BookmarkCard
+│   ├── components/              Layout, Newspaper (feed), StoryParts, BookmarkDetail
 │   └── hooks/                   useMe
 └── extension/
     ├── entrypoints/             background.ts (sync), connect.content.ts, popup/
@@ -99,7 +99,7 @@ Built so far:
 - `jobs` (kind, payload jsonb, status [queued/running/done/failed], attempts, run_after, locked_at, last_error)
 
 Planned:
-- `documents` gains summary, key_points jsonb, summary_source, summarised_at (Phase 2); embedding vector + embedding_model, tsv tsvector (Phase 3); last_checked_at (Phase 6).
+- `documents` gained summary, key_points jsonb, summary_status, summary_source, summary_model, summarised_at, and `ai_usage` (user_id, day, summaries) counts the daily limit (Phase 2); embedding vector + embedding_model, tsv tsvector (Phase 3); last_checked_at (Phase 6).
 - `tags`, `bookmark_tags` (user-scoped; `source` = ai|user); `chat_threads`, `chat_messages`; `digests`.
 - Indexes: GIN on `tsv`, HNSW on `embedding`.
 
@@ -119,10 +119,12 @@ Planned:
 - ✅ `fetch_page`: sync enqueues it for new documents; the handler extracts title, description and article text with `trafilatura` (under 50 words = no article), and reading time comes from the word count. Real-world result: roughly half of typical bookmarks yield article text; the rest are bot-protected (403), JavaScript apps or sign-in walls, which keep their title/description.
 - ✅ Dead links (404/410) form the **Dead links** section; `find_archive` looks up a Wayback copy only when the user clicks "Find archived copy" (`POST /api/bookmarks/{id}/find-archive`). Site logos are read from each page's `<head>`.
 - ✅ Sign-in detection (`services/access.py`): pages needing an account or subscription form the **Needs sign-in** section and are never sent to archive.org.
-- Next: `ai/llm.py` (Gemini + Groq fallback) and a `summarise` job started by the **Summarise** button (`POST /api/bookmarks/{id}/summarise`, counted against the daily limit). Input: stored text if any; otherwise test Gemini's URL context tool, then fall back to URL + title + description as a clearly labelled one-liner. Store `summary_source`.
-- `ai/llm.py`: `ChatGoogleGenerativeAI(...).with_fallbacks([ChatGroq(...)])`.
-- Summarise chain uses `with_structured_output(SummarySchema)` → `{tldr, key_points[], reading_minutes}`. Long articles are cut to a token budget first.
-- Feed rows show the TL;DR and reading time, with "Fetching page…" / "Summarising…" states; a detail view shows key points; "re-summarise" button; per-user daily limit.
+- ✅ `ai/llm.py`: Gemini (`gemini-3.5-flash-lite`) with Groq (`openai/gpt-oss-120b`) as the fallback via `.with_fallbacks()`; model names come from config. `gemini-3.5-flash` was tried first but was mostly overloaded (503s) on the free tier.
+- ✅ Summarise chain (`ai/chains.py`): `with_structured_output(Summary)` → `{summary, key_points[]}`; the page goes in `<article>` tags as untrusted data; input cut to 12,000 characters (about 3,000 tokens) because Groq's free tier allows 8,000 tokens a minute.
+- ✅ `summarise` job started by the **Summarise** button (`POST /api/bookmarks/{id}/summarise`, `?again=true` for Re-summarise), counted against the per-user daily limit (`ai_usage`, checked and counted in one SQL statement). Cached per URL: a summary someone already made is free. Input: page text, a Wayback copy's text, or the title and description. Retried once, then "Couldn't summarise this page."
+- ✅ Feed rows show the summary (or the site's description), with Summarise / "Summarising…" / failed / daily-limit states; the title opens the **detail panel** (summary, key points, Open page, Mark as read, Re-summarise, where it's saved).
+- ✅ The main feed is a **newspaper front page** (editions, newest unread biggest); only the lead story shows the page's preview image (`og:image`, loaded from the site; `find_image` backfills older pages).
+- Later: the free-plan note and the "Limit reached" dialog (email the maintainer); try Gemini's URL context tool for pages we couldn't read.
 - *You'll learn:* prompts, structured output, fallbacks, cost and quota control, async job processing.
 
 **Phase 3: Hybrid search.**

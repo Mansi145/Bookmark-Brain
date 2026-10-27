@@ -72,9 +72,10 @@ After changes: rebuild and click reload on the extension card. Content scripts o
 opened or reloaded after that.
 
 ## Icons
-`assets/icon/logo.svg` (full logo, used at 48/128 px) and `logo-small.svg` (outline, eyes and ribbon
-with thicker strokes, used at 16/32 px, where fine detail turns to mush). `npm run icons` renders
-`public/icon/{16,32,48,128}.png` with `@resvg/resvg-js`; WXT adds them to the manifest automatically.
+`assets/icon/logo.svg` (the full "Masthead BB" logo, for 64 px and up: the 128 px icon) and
+`logo-small.svg` (thick rules only, bigger letters, for 16/32/48 px, where the thin rules disappear). `npm run icons` renders `public/icon/{16,32,48,128}.png` with `@resvg/resvg-js`;
+WXT adds them to the manifest automatically. The web app's `frontend/public/favicon.png` is the
+small logo at 48 px, and the popup and `frontend/src/components/Logo.tsx` inline the same drawing.
 Regenerate after any logo change and commit the PNGs. The logo itself is defined in the `ui-design` skill.
 
 ## Debugging

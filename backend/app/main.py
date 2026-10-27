@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, bookmarks, health, sync, tokens
+from app.api import account, auth, bookmarks, health, sync, tokens, usage
 from app.config import get_settings
 from app.worker import running_workers
 
@@ -36,3 +36,5 @@ app.include_router(auth.router)
 app.include_router(tokens.router)
 app.include_router(sync.router)
 app.include_router(bookmarks.router)
+app.include_router(usage.router)
+app.include_router(account.router)

@@ -18,12 +18,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --panel: #1b1c1f;
-    --surface: #232427;
-    --line: #34363b;
-    --ink: #f2f2f4;
-    --ink2: #c9cbd1;
-    --on-ink: #17181a;
+    --panel: #262220;
+    --surface: #2d2926;
+    --line: #423b36;
+    --ink: #eee8e2;
+    --ink2: #cec5bc;
+    --on-ink: #1f1c1a;
     --dead-bg: #3d2224;
     --dead-fg: #f5b5b5;
   }

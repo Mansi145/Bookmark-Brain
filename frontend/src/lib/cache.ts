@@ -1,0 +1,39 @@
+import type { InfiniteData, QueryClient } from '@tanstack/react-query'
+import type { Bookmark, BookmarkPage } from '../api/types'
+
+// How long a story that no longer belongs in the current view fades out before the feed
+// refetches and drops it (matches the `leave` animation in index.css).
+export const LEAVE_MS = 250
+
+/**
+ * Put an updated bookmark into every cached copy straight away: the feed's scrolling pages (all
+ * views), Earlier's numbered page and the detail panel's single bookmark. The feed then shows
+ * the change before refetching.
+ */
+export function updateCachedBookmark(queryClient: QueryClient, updated: Bookmark) {
+  const swap = (items: Bookmark[]) => items.map((b) => (b.id === updated.id ? updated : b))
+  queryClient.setQueriesData<InfiniteData<BookmarkPage> | BookmarkPage | Bookmark>(
+    { queryKey: ['bookmarks'] },
+    (old) => {
+      if (!old) return old
+      if ('items' in old) return { ...old, items: swap(old.items) }
+      if ('pages' in old) {
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            items: swap(page.items),
+          })),
+        }
+      }
+      return old.id === updated.id ? updated : old
+    },
+  )
+}
+
+/**
+ * Stories marked read while looking at All bookmarks during this visit. They keep their place
+ * and look in the newspaper (design board MarkAsRead: "only its button changes") instead of
+ * jumping to the end, faded; after a reload they sit with the other read stories.
+ */
+export const keptInPlace = new Set<number>()

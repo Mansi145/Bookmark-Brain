@@ -4,7 +4,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { Resvg } from '@resvg/resvg-js'
 
-const sizes = { 16: 'logo-small.svg', 32: 'logo-small.svg', 48: 'logo.svg', 128: 'logo.svg' }
+// The small version under 64 px, where the full version's thin rules disappear; the full one at
+// 128 px (extensions page, store). Design board LogoFinal / the ui-design skill.
+const sizes = { 16: 'logo-small.svg', 32: 'logo-small.svg', 48: 'logo-small.svg', 128: 'logo.svg' }
 
 mkdirSync('public/icon', { recursive: true })
 for (const [size, file] of Object.entries(sizes)) {
