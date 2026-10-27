@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import type { Bookmark, ReadState } from '../api/types'
 import { keptInPlace } from '../lib/cache'
@@ -13,32 +13,37 @@ import { OpenSummary, SummariseAction } from './Summarise'
 // This week / Earlier are editions: one sheet each, with a masthead and thin column rules
 // instead of a card per article. Newest unread stories are biggest (lead → second → standard →
 // brief) and read ones go last, faded. Only the very first story (the lead) shows the page's
-// preview image; a lead without one is text-only. Needs sign-in and Dead links are one sheet
+// preview image; a lead without one is text-only. Earlier is paged, 30 briefs a page, newest
+// first, with a pager under it (?page=2). Needs sign-in and Dead links are one sheet
 // each of standard stories (SectionSheet). At 760 px and below every column stacks into one
 // and the column rules become horizontal dividers (`wide:` is the board's breakpoint).
 
 type Size = 'lead' | 'second' | 'standard' | 'brief'
+type EarlierPages = { page: number; total: number; pageSize: number }
 
 const SHEET = 'rounded-xl border border-line bg-surface p-[18px] wide:p-7'
 
 export default function Newspaper(props: {
   editions: Edition[]
-  complete: boolean
+  earlier: EarlierPages
   view: ReadState | null // the views bar: All (null), Unread or Read
 }) {
   return (
     <div className="flex flex-col gap-6">
-      {props.editions.map((edition, i) => (
-        <EditionSheet
-          key={edition.key}
-          edition={edition}
-          // The first edition is the front page; Earlier is always briefs.
-          layout={i === 0 ? 'front' : edition.key === 'earlier' ? 'briefs' : 'middle'}
-          // Earlier keeps growing as more pages load, so only count it once everything's here.
-          complete={edition.key !== 'earlier' || props.complete}
-          view={props.view}
-        />
-      ))}
+      {props.editions.map((edition, i) => {
+        const earlier = edition.key === 'earlier'
+        return (
+          <EditionSheet
+            key={edition.key}
+            edition={edition}
+            // The first edition is the front page (Earlier only on its first page, when there's
+            // nothing newer); otherwise Earlier is all briefs.
+            layout={i === 0 && !(earlier && props.earlier.page > 1) ? 'front' : earlier ? 'briefs' : 'middle'}
+            pages={earlier ? props.earlier : undefined}
+            view={props.view}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -46,14 +51,18 @@ export default function Newspaper(props: {
 function EditionSheet(props: {
   edition: Edition
   layout: 'front' | 'middle' | 'briefs'
-  complete: boolean
+  pages?: EarlierPages // Earlier: which page, of how many bookmarks
   view: ReadState | null
 }) {
-  const { edition, layout } = props
+  const { edition, layout, pages } = props
+  const sheet = useRef<HTMLElement>(null)
   // Unread first, newest first; read ones last (also newest first). A story just marked read in
-  // All bookmarks still counts as unread here, so it stays where it was.
+  // All bookmarks still counts as unread here, so it stays where it was. Earlier's pages are in
+  // save-date order only (board Main), so a page holds the same 30 whatever was read.
   const upFront = (b: Bookmark) => b.read_state === 'unread' || keptInPlace.has(b.id)
-  const stories = [...edition.items.filter(upFront), ...edition.items.filter((b) => !upFront(b))]
+  const stories = pages
+    ? edition.items
+    : [...edition.items.filter(upFront), ...edition.items.filter((b) => !upFront(b))]
   const unread = edition.items.length - edition.items.filter((b) => b.read_state === 'read').length
   const front = layout === 'front'
   const title = edition.key === 'today' ? "Today's edition" : edition.title
@@ -64,7 +73,7 @@ function EditionSheet(props: {
       ? `${n} new · ${unread === n ? 'all unread' : `${unread} unread`}`
       : edition.key === 'week'
         ? `${n} ${n === 1 ? 'bookmark' : 'bookmarks'} · ${unread} unread`
-        : `${n}${props.complete ? '' : '+'} ${n === 1 ? 'bookmark' : 'bookmarks'}`
+        : `${pages?.total ?? n} ${(pages?.total ?? n) === 1 ? 'bookmark' : 'bookmarks'}`
 
   // Who gets which size: front = lead, two seconds, three standards; middle = a second and
   // two standards; everything after that is a brief.
@@ -86,7 +95,7 @@ function EditionSheet(props: {
   )
 
   return (
-    <section aria-label={title} className={SHEET}>
+    <section ref={sheet} aria-label={title} className={`${SHEET} scroll-mt-4`}>
       <Masthead left={editionDate(edition.key)} title={title} right={count} front={front} />
 
       {front && top.length > 0 && (
@@ -125,7 +134,117 @@ function EditionSheet(props: {
           {row.map((b) => story(b, 'brief'))}
         </Row>
       ))}
+
+      {/* After paging, jump back to the top of Earlier so the new page starts in view. */}
+      {pages && pages.total > pages.pageSize && (
+        <Pager {...pages} onPage={() => sheet.current?.scrollIntoView({ block: 'start' })} />
+      )}
     </section>
+  )
+}
+
+/**
+ * Earlier's pager (design board Main): "Showing 31–60 of 189 · newest first", then ‹ Newer,
+ * page numbers (the current one on accent), an ellipsis for skipped pages, and Older ›. The
+ * page is in the address (?page=2, page 1 has none), keeping the other filters.
+ */
+function Pager(props: EarlierPages & { onPage: () => void }) {
+  const [params] = useSearchParams()
+  const last = Math.ceil(props.total / props.pageSize)
+  const from = (props.page - 1) * props.pageSize + 1
+  const to = Math.min(props.page * props.pageSize, props.total)
+  const href = (page: number) => {
+    const next = new URLSearchParams(params)
+    next.delete('bookmark')
+    if (page > 1) next.set('page', String(page))
+    else next.delete('page')
+    return { search: next.toString() }
+  }
+  const box = 'flex h-9 items-center rounded-lg border text-sm no-underline'
+  const off = `${box} gap-1.5 border-line px-3 text-muted opacity-60`
+  const step = `${box} gap-1.5 border-line bg-surface px-3 font-medium text-ink`
+
+  return (
+    <nav
+      aria-label="Earlier pages"
+      className="mt-[22px] flex flex-wrap items-center justify-between gap-3 border-t border-ink pt-4"
+    >
+      <span className="text-[13px] text-ink2">
+        Showing {from}–{to} of {props.total} · newest first
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {props.page > 1 ? (
+          <Link to={href(props.page - 1)} onClick={props.onPage} className={step}>
+            <Chevron back />
+            Newer
+          </Link>
+        ) : (
+          <span aria-disabled="true" className={off}>
+            <Chevron back />
+            Newer
+          </span>
+        )}
+        {pageNumbers(props.page, last).map((n, i) =>
+          n === null ? (
+            <span key={`gap-${i}`} aria-hidden className="px-1 text-muted">
+              …
+            </span>
+          ) : (
+            <Link
+              key={n}
+              to={href(n)}
+              onClick={props.onPage}
+              aria-label={`Page ${n}`}
+              aria-current={n === props.page ? 'page' : undefined}
+              className={`grid size-9 place-items-center rounded-lg border text-sm no-underline ${n === props.page ? 'border-accent bg-accent font-semibold text-on-accent' : 'border-line bg-surface font-medium text-ink'}`}
+            >
+              {n}
+            </Link>
+          ),
+        )}
+        {props.page < last ? (
+          <Link to={href(props.page + 1)} onClick={props.onPage} className={step}>
+            Older
+            <Chevron />
+          </Link>
+        ) : (
+          <span aria-disabled="true" className={off}>
+            Older
+            <Chevron />
+          </span>
+        )}
+      </div>
+    </nav>
+  )
+}
+
+/**
+ * Which page numbers to show: the first, the last, and the ones around the current page, with
+ * null for a gap ("…"). Page 1 of 7: 1 2 3 … 7. Page 4 of 7: 1 … 3 4 5 … 7.
+ */
+function pageNumbers(current: number, last: number): (number | null)[] {
+  const shown = new Set([1, last, current - 1, current, current + 1])
+  if (current <= 2) shown.add(3)
+  if (current >= last - 1) shown.add(last - 2)
+  const pages = [...shown].filter((n) => n >= 1 && n <= last).sort((a, b) => a - b)
+  return pages.flatMap((n, i) => (i > 0 && n - pages[i - 1] > 1 ? [null, n] : [n]))
+}
+
+function Chevron({ back = false }: { back?: boolean }) {
+  return (
+    <svg
+      aria-hidden
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={back ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'} />
+    </svg>
   )
 }
 

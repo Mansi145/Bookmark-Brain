@@ -1,11 +1,14 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
-import type { BookmarkPage, FacetCount, Facets, FeedSection, ReadState } from '../api/types'
+import type { Bookmark, BookmarkPage, FacetCount, Facets, FeedSection, ReadState } from '../api/types'
 import BookmarkDetail from '../components/BookmarkDetail'
 import Newspaper, { FrontPageLoading, SectionSheet } from '../components/Newspaper'
-import { groupBySaveDate } from '../lib/editions'
+import { groupBySaveDate, startOfWeek, type Edition } from '../lib/editions'
+
+// Earlier's pages (design board Main): 30 briefs each, newest first.
+const EARLIER_PAGE_SIZE = 30
 
 // main: the feed. sign_in: "Needs sign-in" (an account or subscription). dead: "Dead links"
 // (404/410, and pages we could only read from archive.org). Each bookmark is in one section.
@@ -19,30 +22,57 @@ export default function FeedPage({ section }: { section: FeedSection }) {
 
   const facets = useFacets(section)
 
+  // The main feed splits at the start of the week: Today and This week load by scrolling (all
+  // of them), Earlier in numbered pages (?page=2), newest first. The two sections just scroll.
+  const weekStart = section === 'main' ? startOfWeek().toISOString() : null
+  const earlierPage = Math.max(1, Math.floor(Number(params.get('page'))) || 1)
+  const withFilters = (query: URLSearchParams) => {
+    if (folder) query.set('folder', folder)
+    if (browser) query.set('browser', browser)
+    if (readState) query.set('read_state', readState)
+    return query
+  }
+
   const feed = useInfiniteQuery({
-    queryKey: ['bookmarks', { section, folder, browser, readState }],
+    queryKey: ['bookmarks', { section, folder, browser, readState, weekStart }],
     queryFn: ({ pageParam }) => {
-      const query = new URLSearchParams({ limit: '30', section })
+      const query = withFilters(new URLSearchParams({ limit: '30', section }))
       if (pageParam) query.set('cursor', pageParam)
-      if (folder) query.set('folder', folder)
-      if (browser) query.set('browser', browser)
-      if (readState) query.set('read_state', readState)
+      if (weekStart) query.set('saved_after', weekStart)
       return api.get<BookmarkPage>(`/api/bookmarks?${query}`)
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor,
-    // Pages are fetched in the background after a sync. While any loaded bookmark is still
-    // pending, refetch every few seconds so results appear without a reload; stop after
-    // ~2 minutes in case something stays pending (e.g. the worker is off).
-    // Also poll while something the user asked for is running: a Wayback Machine lookup or a
-    // summary (a few seconds each).
-    refetchInterval: (query) => {
-      const items = query.state.data?.pages.flatMap((p) => p.items) ?? []
-      const pending = items.some((b) => b.status === 'pending')
-      const asked = items.some((b) => b.archive_status === 'checking' || b.summary_status === 'working')
-      return asked || (pending && query.state.dataUpdateCount < 40) ? 3000 : false
-    },
+    refetchInterval: (query) =>
+      pollInterval(query.state.data?.pages.flatMap((p) => p.items) ?? [], query.state.dataUpdateCount),
   })
+
+  const earlier = useQuery({
+    queryKey: ['bookmarks', 'earlier', { folder, browser, readState, weekStart, page: earlierPage }],
+    enabled: weekStart !== null,
+    queryFn: () => {
+      const query = withFilters(
+        new URLSearchParams({ section, limit: String(EARLIER_PAGE_SIZE), page: String(earlierPage) }),
+      )
+      query.set('saved_before', weekStart!)
+      return api.get<BookmarkPage>(`/api/bookmarks?${query}`)
+    },
+    // Keep showing the current page while the next one loads, so the sheet doesn't jump.
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) => pollInterval(query.state.data?.items ?? [], query.state.dataUpdateCount),
+  })
+
+  // A page past the end (bookmarks were removed, or an old link): go to the last page instead.
+  const earlierTotal = earlier.data?.total ?? 0
+  const lastPage = Math.max(1, Math.ceil(earlierTotal / EARLIER_PAGE_SIZE))
+  useEffect(() => {
+    if (earlier.isSuccess && !earlier.isPlaceholderData && earlierPage > lastPage) {
+      const next = new URLSearchParams(params)
+      if (lastPage > 1) next.set('page', String(lastPage))
+      else next.delete('page')
+      setParams(next, { replace: true })
+    }
+  }, [earlier.isSuccess, earlier.isPlaceholderData, earlierPage, lastPage, params, setParams])
 
   // Infinite scroll: load the next page when the sentinel below the grid scrolls into view.
   const sentinel = useRef<HTMLDivElement>(null)
@@ -61,6 +91,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
     const next = new URLSearchParams(params)
     if (value === null || next.get(key) === value) next.delete(key)
     else next.set(key, value)
+    next.delete('page') // a different filter starts Earlier from its first page
     setParams(next)
   }
 
@@ -76,7 +107,10 @@ export default function FeedPage({ section }: { section: FeedSection }) {
   // First run: no browser has synced anything yet (facets list every browser, even at 0).
   const isFirstRun = facets.isSuccess && facets.data.browsers.length === 0
   const isEmpty = facets.isSuccess && facets.data.total === 0 && !isFirstRun
-  const groups = groupBySaveDate(bookmarks)
+  const editions: Edition[] = groupBySaveDate(bookmarks)
+  if (earlier.data && earlier.data.items.length > 0) {
+    editions.push({ key: 'earlier', title: 'Earlier', items: earlier.data.items })
+  }
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-wrap items-start gap-8 px-6 pt-8 pb-16">
@@ -133,7 +167,13 @@ export default function FeedPage({ section }: { section: FeedSection }) {
         {/* Everything is a newspaper (board Main): the feed as editions, the two sections as one
             sheet each. */}
         {section === 'main' && feed.isPending && !isFirstRun && <FrontPageLoading />}
-        {section === 'main' && <Newspaper editions={groups} complete={!hasNextPage} view={readState} />}
+        {section === 'main' && (
+          <Newspaper
+            editions={editions}
+            earlier={{ page: earlierPage, total: earlierTotal, pageSize: EARLIER_PAGE_SIZE }}
+            view={readState}
+          />
+        )}
         {section !== 'main' && bookmarks.length > 0 && (
           <SectionSheet {...SHEETS[section]} count={facets.data?.total ?? bookmarks.length} items={bookmarks} />
         )}
@@ -145,6 +185,18 @@ export default function FeedPage({ section }: { section: FeedSection }) {
       {openId && <BookmarkDetail key={openId} id={openId} onClose={closeDetail} />}
     </div>
   )
+}
+
+/**
+ * Pages are fetched in the background after a sync. While any shown bookmark is still pending,
+ * refetch every few seconds so results appear without a reload; stop after ~2 minutes in case
+ * something stays pending (e.g. the worker is off). Also poll while something the user asked
+ * for is running: a Wayback Machine lookup or a summary (a few seconds each).
+ */
+function pollInterval(items: Bookmark[], updates: number) {
+  const pending = items.some((b) => b.status === 'pending')
+  const asked = items.some((b) => b.archive_status === 'checking' || b.summary_status === 'working')
+  return asked || (pending && updates < 40) ? 3000 : false
 }
 
 // The two section sheets' mastheads (boards FeedSignIn / FeedDead).

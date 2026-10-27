@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-// Light/dark mode. Until the user presses the top-bar toggle we follow the system setting;
+// Light/dark mode. Until the user flips Dark mode in the account menu we follow the system setting;
 // after that their choice is stored and set as <html data-theme="…">, which index.css reads.
 // index.html applies a stored choice before React starts, so the page doesn't flash.
 

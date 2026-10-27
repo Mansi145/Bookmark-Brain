@@ -115,7 +115,7 @@ shows the empty state, `dark` the dark theme), `FeedSignIn`, `FeedDead`, `FeedSi
 `FeedDeadEmpty`, `RowStates` (every row state in one place), `FeedDark`.
 - **Top bar** on the dark texture, white text: small logo + "Bookmark Brain" (Aleo 21 px); a dark
   search field (`rgba(23,24,26,.55)`, 1 px `rgba(255,255,255,.18)`, "Search by meaning or keyword…",
-  `/` shortcut); **tabs Feed · Ask · Settings only** (owner: the sections are NOT in the top nav; the
+  `/` shortcut); **tabs Feed · Ask · Digest** (Settings is not a tab any more: owner, 2026-10-27; it's in the account menu) (owner: the sections are NOT in the top nav; the
   current tab on `rgba(255,255,255,.14)`, weight 600); a quiet **How it works** link with a
   help icon (to the How it works page); a white round account button (the user's initial).
   **No theme button in the top bar any more** (owner, 2026-10-27): the light / dark switch lives in
@@ -123,7 +123,7 @@ shows the empty state, `dark` the dark theme), `FeedSignIn`, `FeedDead`, `FeedSi
 - **Account menu** (`AccountMenu`, `AccountMenuDark`): the account button (`aria-haspopup="menu"`,
   `aria-expanded`) opens a 272 px `surface` card under it, right-aligned, 1 px `line`, radius 14 px,
   soft shadow: avatar initial on `accent` + name + email, then rows (40 px, icon + label)
-  **Settings**, **How it works**, **Dark mode** with a switch (`menuitemcheckbox`, track `accent`
+  **Settings**, **Dark mode** with a switch (`menuitemcheckbox`, track `accent`
   when on, `line` when off, white knob), a divider, **Sign out**. Closes on Escape or a click outside.
 - **Three feed sections**, each bookmark in exactly one: **Feed** (pages we can read), **Needs
   sign-in** (needs an account: "Needs sign-in", or a subscription: "Subscribers only") and **Dead
@@ -183,7 +183,7 @@ shows the empty state, `dark` the dark theme), `FeedSignIn`, `FeedDead`, `FeedSi
 - Shortest-read sort shows a flat list (date groups only make sense for date sorts).
 
 ## More pages (designed 2026-10-23; owner chose the layouts)
-Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own page).
+Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to the account menu).
 - **Bookmark detail** (`FeedDetail`; Main `detail`): a **480 px side panel** from the right over a
   35 % dark backdrop (full screen on phones), on `panel`. Close button; logo chip + site · folder ·
   browser; Aleo 30 px title; "Saved 2 days ago · 6 min read"; **Open page** (`ink`), Mark as read,
@@ -210,10 +210,22 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
   bookmarks…" + skeleton lines; composer (textarea + `ink` send button) and "Answers use only pages
   you've saved, and link to each one." Right: **Sources** (numbered cards with logo chip, site, Aleo
   title) + "Also found". Empty: "Ask your bookmarks" + 4 suggested-question pills.
-- **Weekly digest** (`Digest`): left panel "Past digests" (weeks with counts); main panel "Weekly
-  digest", "23–29 Oct · 9 unread bookmarks you saved more than 30 days ago", an AI overview card, then
-  one band per theme with cards (logo, site · saved … ago · n min read, Aleo title, one line on why to
-  read it, **Mark as read**).
+- **Weekly digest** (`Digest`, `DigestDark`), a **newsletter** (owner, 2026-10-27): no sidebar. One
+  `panel` with "Weekly digest" (Aleo 40 px), "Unread bookmarks you saved more than 30 days ago,
+  gathered once a week.", then **back-issue tabs** (This week · 16–22 Oct · 9–15 Oct · 2–8 Oct ·
+  Older; underline style, current = 3 px `accent` underline, counts in `muted`). Below, one centred
+  `surface` sheet, max 720 px, padding 36/44 px (20/18 on phones):
+  - masthead: band rule, "23–29 October" · **The weekly digest** (Aleo 36 px, centred) · "9 stories",
+    double `ink` rule;
+  - "This week" label + the AI overview as an editor's note (Aleo 19 px, 1.6 line height, a 58 px
+    drop cap);
+  - one section per theme: thin band rule, Aleo 24 px theme name + "n stories", then a list of
+    stories split by `line` rules: source line (logo · site · n min read · saved … ago), Aleo 20 px
+    title (opens the detail panel), one line on why to read it, and a compact **Open summary** or
+    **Summarise** (32 px), exactly like briefs in the feed. No Mark as read on the page (it's in the
+    detail panel);
+  - footer under an `ink` rule: "That's this week. The next digest arrives on Monday." +
+    "Back to your feed".
 - **Connect** (`ConnectStates`, all states on one board) and **error pages** (`ErrorStates`), on the
   dark texture with a `surface` card per state (icon on `accent`, Aleo 24 px title, one line, one
   action). Connect: signed out (sign-in buttons) → Connecting… → Syncing (n found, progress bar) →
@@ -256,6 +268,17 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
   paragraph) show in full on the lead, 5 lines on second stories, 3 on standard, none on briefs; only the top lead shows the page's
   preview image (16:9, caption "Image from <site>"; no image → a text-only lead). `NewsGrid` and
   `NewsSections` were the other trials.
+  - **Story anatomy** (owner, 2026-10-27): every story starts with its **source line** (site logo ·
+    site · read time · age) at the top, above the folder label and the headline; on the lead it sits
+    just under the preview image. Same in the sections, states, search and the mini front pages.
+  - **Briefs** never show summary text. Not summarised: a compact **Summarise** (32 px, lines icon)
+    that opens the detail panel once the server accepts, where the summary appears (at the daily
+    limit only the Limit reached dialog shows). Summary ready: a compact outlined **Open summary**
+    (32 px, lines icon) that opens the detail panel.
+  - **Earlier** is paginated, newest first (owner): 30 briefs per page in 4 ruled columns, then a
+    pager under a thin `ink` rule: "Showing 1–30 of 189 · newest first" on the left; **‹ Newer**
+    (disabled on page 1), page numbers (36 px squares; current on `accent`), an ellipsis, the last
+    page, **Older ›** on the right. Replaces the old "N more from earlier" link.
   Built into `Main` (Home · feed) and every board that imports it:
   - **Sections**: Needs sign-in and Dead links are one sheet each (small masthead, standard stories
     in 3 ruled columns, each with its state line); empty states as before.
@@ -317,9 +340,26 @@ and "Manage connected browsers in Settings" at the bottom. Status card per state
 
 Dark mode: Settings and the popup use the dark tokens; the dark texture is the same in both themes.
 
+## Logo animations (owner, 2026-10-27)
+The top-left masthead BB in the top bar animates while the app works, a different movement per job
+(board `LogoAnimations`, CSS keyframes on the SVG parts). Every one stops and shows the still logo
+under `prefers-reduced-motion: reduce`, and the status is always also said in words.
+- **Summarise → "Page back"**: a copy of the right B in `accent` turns over the spine to the left
+  (scaleX 1 → −1 around x = 100, ~0.7 s) and fades. Plays once as a flash on click, then repeats
+  every 2 s until the summary is ready.
+- **Page loading → "Rewind"**: the whole mark turns one full turn anticlockwise (2.2 s,
+  `cubic-bezier(.6,0,.3,1)`, turning for the first 70 %, resting for the rest), looping while a page
+  loads, including the free server waking up.
+- **Ask → "Conversation"**: the two B's take turns lifting 8/200 of the mark (1.2 s cycle, the left
+  B 0.6 s behind the right), from sending a question until the answer starts to appear.
+- **Searching → "Lens"**: a brown (`accent`) lens ring (r 30/200, 7 stroke, white fill at 35 %) with
+  a short handle slides over the letters from left to right and back (translateX 0 → 76/200, 2.2 s
+  ease-in-out loop), clipped to the tile, while a search runs.
+- **Wayback Machine → "Hourglass"**: a 30/200 `accent` badge (cream outline) in the bottom-right
+  corner of the tile holds a white hourglass that turns over every 1.8 s (still for 40 %, turns
+  180° over 20 %, still again), while we look for an archived copy.
+
 ## Later (owner's backlog, don't design until they say so)
-- **Logo animations** (next up): animate the top-left masthead BB while the app works, with a
-  **different animation for each action** (searching, summarising, checking the Wayback Machine).
 
 ## Rules
 - Real `<button>`, `<a href>`, `<label>`; `aria-label` on icon buttons; visible focus; touch targets

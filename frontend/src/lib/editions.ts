@@ -14,10 +14,18 @@ function startOfToday() {
   return today
 }
 
+/**
+ * Where This week ends and Earlier begins: the start of the day six days ago (local time). The
+ * feed sends it to the server as an exact moment, so both sides split at the same instant.
+ */
+export function startOfWeek() {
+  return new Date(startOfToday().getTime() - 6 * DAY)
+}
+
 /** Rows arrive newest first, so each group keeps that order. Empty groups are left out. */
 export function groupBySaveDate(bookmarks: Bookmark[]): Edition[] {
   const today = startOfToday().getTime()
-  const weekAgo = today - 6 * DAY
+  const weekAgo = startOfWeek().getTime()
   const groups: Edition[] = [
     { key: 'today', title: 'Today', items: [] },
     { key: 'week', title: 'This week', items: [] },
@@ -43,7 +51,7 @@ const weekday = new Intl.DateTimeFormat(undefined, {
 /** The masthead's date: "Tuesday 27 October", "21–26 October", "Before 21 October". */
 export function editionDate(key: EditionKey) {
   const today = startOfToday()
-  const weekStart = new Date(today.getTime() - 6 * DAY)
+  const weekStart = startOfWeek()
   if (key === 'today') return weekday.format(today)
   if (key === 'earlier') return `Before ${dayMonth.format(weekStart)}`
   const yesterday = new Date(today.getTime() - DAY)

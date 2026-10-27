@@ -6,23 +6,29 @@ import type { Bookmark, BookmarkPage } from '../api/types'
 export const LEAVE_MS = 250
 
 /**
- * Put an updated bookmark into every cached copy straight away: the feed's pages (all views)
- * and the detail panel's single bookmark. The feed then shows the change before refetching.
+ * Put an updated bookmark into every cached copy straight away: the feed's scrolling pages (all
+ * views), Earlier's numbered page and the detail panel's single bookmark. The feed then shows
+ * the change before refetching.
  */
 export function updateCachedBookmark(queryClient: QueryClient, updated: Bookmark) {
-  queryClient.setQueriesData<InfiniteData<BookmarkPage> | Bookmark>({ queryKey: ['bookmarks'] }, (old) => {
-    if (!old) return old
-    if ('pages' in old) {
-      return {
-        ...old,
-        pages: old.pages.map((page) => ({
-          ...page,
-          items: page.items.map((b) => (b.id === updated.id ? updated : b)),
-        })),
+  const swap = (items: Bookmark[]) => items.map((b) => (b.id === updated.id ? updated : b))
+  queryClient.setQueriesData<InfiniteData<BookmarkPage> | BookmarkPage | Bookmark>(
+    { queryKey: ['bookmarks'] },
+    (old) => {
+      if (!old) return old
+      if ('items' in old) return { ...old, items: swap(old.items) }
+      if ('pages' in old) {
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            items: swap(page.items),
+          })),
+        }
       }
-    }
-    return old.id === updated.id ? updated : old
-  })
+      return old.id === updated.id ? updated : old
+    },
+  )
 }
 
 /**

@@ -118,6 +118,7 @@ class BookmarkUpdate(BaseModel):
 class BookmarkPage(BaseModel):
     items: list[BookmarkOut]
     next_cursor: str | None
+    total: int | None = None  # only for numbered pages (`page=`): every match, for the pager
 
 
 class FacetCount(BaseModel):
@@ -159,3 +160,19 @@ class UsageOut(BaseModel):
     summaries_used: int
     summaries_limit: int
     resets_at: datetime  # midnight UTC
+
+
+# --- Account ------------------------------------------------------------------
+
+
+class AccountOut(BaseModel):
+    """What deleting the account would remove (Settings → Account's confirmation dialog)."""
+
+    bookmarks: int
+    browsers: int  # connected browsers = extension tokens
+
+
+class AccountDeleteIn(BaseModel):
+    """The typed confirmation, checked here too, not only in the dialog."""
+
+    confirm: str

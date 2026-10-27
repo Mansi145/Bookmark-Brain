@@ -71,6 +71,11 @@ async def list_bookmarks(
     browser: str | None = None,
     section: Section = Section.main,
     read_state: ReadState | None = None,  # the Feed's reading-state bar; None = all
+    # The newspaper's editions: Today and This week load everything saved after the start of
+    # the week (scrolling); Earlier loads what's older, in numbered pages.
+    saved_after: datetime | None = None,
+    saved_before: datetime | None = None,
+    page: Annotated[int | None, Query(ge=1)] = None,  # numbered pages instead of the cursor
 ):
     query = select(Bookmark).where(
         Bookmark.user_id == user.id,
@@ -94,6 +99,21 @@ async def list_bookmarks(
             source_filter.append(BookmarkSource.browser == browser)
         query = query.where(select(BookmarkSource.id).where(*source_filter).exists())
 
+    if saved_after is not None:
+        query = query.where(Bookmark.added_at >= saved_after)
+    if saved_before is not None:
+        query = query.where(Bookmark.added_at < saved_before)
+
+    newest_first = (Bookmark.added_at.desc(), Bookmark.id.desc())
+    if page is not None:
+        # Numbered pages (Earlier's pager: "Showing 31–60 of 189"): OFFSET plus a total.
+        # Keyset paging (below) can't jump to page 7, and OFFSET's cost (re-reading the
+        # skipped rows) doesn't matter at hundreds or thousands of bookmarks.
+        total = await session.scalar(select(func.count()).select_from(query.subquery()))
+        query = query.order_by(*newest_first).offset((page - 1) * limit).limit(limit)
+        rows = (await session.scalars(query)).unique().all()
+        return BookmarkPage(items=[_to_out(b) for b in rows], next_cursor=None, total=total)
+
     # Keyset pagination: "rows after this (added_at, id)". Unlike OFFSET, it stays
     # fast on page 100 and doesn't skip/duplicate rows when new bookmarks arrive.
     if cursor:
@@ -105,7 +125,7 @@ async def list_bookmarks(
             )
         )
 
-    query = query.order_by(Bookmark.added_at.desc(), Bookmark.id.desc()).limit(limit + 1)
+    query = query.order_by(*newest_first).limit(limit + 1)
     rows = (await session.scalars(query)).unique().all()
     page, has_more = rows[:limit], len(rows) > limit
 

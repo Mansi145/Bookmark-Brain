@@ -5,6 +5,28 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Account menu, Settings → Account and Earlier's pages
+
+#### Added
+- **Earlier is paginated** (design board Main, owner): 30 briefs a page in save-date order, newest first, and under them a pager: "Showing 31–60 of 189 · newest first", ‹ Newer, page numbers (the current one on accent), an ellipsis for skipped pages, the last page and Older ›. The page is in the address (`?page=2`) and keeps the other filters; changing a filter goes back to page 1; paging scrolls back to the top of Earlier and keeps the old page on screen until the new one arrives. A page past the end (an old link) goes to the last page. The pager only shows when there's more than one page. Today and This week still load by scrolling.
+- **`GET /api/bookmarks` takes `saved_after` / `saved_before`** (the feed splits at the start of the week, sent as an exact moment so the browser and the server agree) and **`page`**: numbered pages with OFFSET and a `total`, because keyset paging can't jump to page 7.
+- **Account menu** (design boards AccountMenu / AccountMenuDark): the round account button (`aria-haspopup="menu"`) opens a 272 px card with your name and email, Settings, a **Dark mode** switch and Sign out (How it works stays a link in the top bar, owner). Closes on Escape, a click outside or Tab; arrow keys move between items. Shows your Google picture when you have one, else your initial.
+- **Settings → Account** (design boards SettingsAccount / SettingsAccountDark / SettingsAccountDelete), switched from the Settings menu (`/settings?section=account`):
+  - **Your account**: picture or initial, name, email, "Signed in with Google", Sign out.
+  - **Download my data**: `GET /api/account/export`, a JSON file with every bookmark (title, URL, site, saved date, read state, which browsers and folders have it, summary and key points) and the connected browsers (names and dates only, never token secrets).
+  - **Delete account**: a confirmation dialog with the real counts (`GET /api/account`) that stays off until DELETE is typed, then `DELETE /api/account` (`{"confirm": "DELETE"}`, checked on the server too). Deleting the user row removes everything personal through the database's cascades (bookmarks, which browser has each, extension tokens, AI usage) and signs you out; the shared per-URL pages and summaries stay.
+- **Account actions only from the web app** (`WebUser`): export and delete accept only the session cookie, never an extension token, so a leaked extension token can't download or wipe the account.
+- **`onDead` colour** for text on a deadFg fill (white in light, `#1F1C1A` in dark).
+
+#### Changed
+- **Settings left the top bar's tabs** (owner): it's in the account menu, so the tabs are just Feed for now.
+- **The light / dark button left the top bar**; the switch lives in the account menu. The theme still follows the system until changed, and the choice is remembered.
+- **The top bar's texture is clipped on its own layer**, so the account menu can hang below the bar.
+
+#### Notes
+- If deleting fails, "Couldn't delete your account. Please try again." replaces the hint under the dialog's buttons (added in the build so a failure isn't silent, then approved on board SettingsAccountDeleteError).
+- The logo animations (five, one per job) are designed but not built yet.
+
 ### Open summary on briefs, dev tools, warm charcoal dark mode, read stories in place and every feed screen as a newspaper
 
 #### Added
@@ -124,6 +146,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Not built yet, all designed: the Summarise button and the bookmark detail panel (next step), search (Phase 3), the Ask page (Phase 4), tags (Phase 5), the Digest page (Phase 7), sorting, the row "⋯" menu, and Settings' AI usage and Account sections. The Ask and Digest tabs join the top bar when their pages exist.
 
 ### Design (canvas)
+- Weekly digest redesigned as a newsletter: back-issue tabs instead of the sidebar, one centred sheet with a masthead, the AI overview as an editor's note with a drop cap, a section per theme with stories that open the detail panel (Summarise / Open summary like feed briefs), and a footer. Not built yet.
+- Logo animations for searching (Lens) and the Wayback Machine (Hourglass); Settings moved out of the top-bar tabs into the account menu; How it works left the account menu; delete-account error line.
+- Logo animations: Page back while summarising, Rewind while a page loads, Conversation while Ask works. Not built yet.
+- Stories start with their source line; briefs get Summarise / Open summary buttons that open the detail panel; Earlier is paginated, newest first.
 - Account menu with name, Settings, How it works, a dark-mode switch and Sign out (the theme button left the top bar); Settings → Account with profile, sign out, download my data and delete account (typed confirmation). Not built yet.
 - Softer "warm charcoal" dark mode everywhere; every feed screen rebuilt as the newspaper front page (sections, story states, search, loading, phone width); sign-up preview and How it works updated to match. Not built yet.
 - Connect states 7–9 wording approved.

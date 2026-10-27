@@ -21,6 +21,8 @@
   --color-skeleton: #e7e4df;
   --color-dead-bg: #f8e3e3;
   --color-dead-fg: #7c1d1d;
+  /* Text on a deadFg fill (Delete everything): white in light, the page colour in dark. */
+  --color-on-dead: #ffffff;
 
   /* On the nebula texture (both themes). */
   --color-on-texture: #ffffff;
@@ -72,8 +74,8 @@
 }
 
 /* Dark theme, "warm charcoal" (owner, ui-design skill): lifted, slightly warm greys with off-white
-   text instead of near-black and bright white. Follows the system setting until the top-bar
-   toggle is pressed, which stores the choice and sets <html data-theme="light|dark"> (see
+   text instead of near-black and bright white. Follows the system setting until Dark mode in
+   the account menu is flipped, which stores the choice and sets <html data-theme="light|dark"> (see
    useTheme). The token list is repeated because CSS can't share one block between a media
    query and an attribute selector. */
 @media (prefers-color-scheme: dark) {
@@ -89,6 +91,7 @@
     --color-skeleton: #3a3430;
     --color-dead-bg: #3d2224;
     --color-dead-fg: #f5b5b5;
+    --color-on-dead: #1f1c1a;
   }
 }
 
@@ -104,6 +107,7 @@
   --color-skeleton: #3a3430;
   --color-dead-bg: #3d2224;
   --color-dead-fg: #f5b5b5;
+  --color-on-dead: #1f1c1a;
 }
 
 :root {

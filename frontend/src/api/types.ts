@@ -52,6 +52,7 @@ export type FeedSection = 'main' | 'sign_in' | 'dead'
 export type BookmarkPage = {
   items: Bookmark[]
   next_cursor: string | null
+  total?: number | null // only for numbered pages (`page=`): every match, for the pager
 }
 
 export type FacetCount = { value: string; count: number }
@@ -82,4 +83,10 @@ export type Usage = {
   summaries_used: number
   summaries_limit: number
   resets_at: string // midnight UTC
+}
+
+/** Settings → Account: what deleting the account would remove. Mirrors AccountOut. */
+export interface Account {
+  bookmarks: number
+  browsers: number // connected browsers = extension tokens
 }

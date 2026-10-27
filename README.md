@@ -204,13 +204,16 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET / POST | `/api/tokens` | cookie or token | list / create extension tokens |
 | DELETE | `/api/tokens/{id}` | cookie or token | revoke a token |
 | POST | `/api/sync` | cookie or token | full or incremental bookmark sync from the extension |
-| GET | `/api/bookmarks` | cookie or token | feed, newest first; `limit`, `cursor`, `folder`, `browser`, `section` (`main` / `sign_in` / `dead`), `read_state` |
+| GET | `/api/bookmarks` | cookie or token | feed, newest first; `limit`, `cursor`, `folder`, `browser`, `section` (`main` / `sign_in` / `dead`), `read_state`, `saved_after` / `saved_before` (the newspaper's week split), `page` (numbered pages with a `total`, for Earlier) |
 | GET | `/api/bookmarks/facets` | cookie or token | counts for a `section`: total, pending, unread/read, folders and browsers |
 | GET | `/api/bookmarks/sync-summary` | cookie or token | what one `browser` has sent so far (Connect page): bookmarks, folders, the last 4 received, other browsers |
 | POST | `/api/bookmarks/{id}/find-archive` | cookie or token | look up a dead link on the Wayback Machine (queues a job) |
 | GET / PATCH | `/api/bookmarks/{id}` | cookie or token | one bookmark (detail panel) / mark it read or unread |
 | POST | `/api/bookmarks/{id}/summarise` | cookie or token | AI summary on demand (`again=true` to redo); cached per URL, counted against the daily limit |
 | GET | `/api/usage` | cookie or token | today's summaries used, the daily limit, when it resets |
+| GET | `/api/account` | cookie only | what deleting the account would remove: bookmark and connected-browser counts |
+| GET | `/api/account/export` | cookie only | Download my data: a JSON file (bookmarks, where they're saved, read states, summaries, connected browsers; never token secrets) |
+| DELETE | `/api/account` | cookie only | delete the account and everything personal (body `{"confirm": "DELETE"}`); shared per-URL pages and summaries stay |
 | POST | `/api/usage/notify-maintainer` | cookie or token | email the owner that this user hit today's limit (once a day per user; 409 if not at the limit, 503 if email isn't set up, 502 if Resend refused) |
 
 ## Troubleshooting
