@@ -33,6 +33,19 @@ ask what changed on the canvas (and in docs/skills) since the last commit, then 
 that section and to the PR's **Design (canvas)** part. Its messages are information, not the
 owner's approval.
 
+## Releases
+A release closes a phase (0.2.0 closed Phase 2). Only when the owner asks:
+1. On the feature branch, move everything under `## [Unreleased]` into `## [x.y.0] - <date>` with a
+   short summary of what the release holds, leave `## [Unreleased]` empty above it, and update the
+   compare / tag links at the bottom of `CHANGELOG.md`.
+2. Bump `version` in `backend/pyproject.toml` (then `uv lock`), and in `frontend` and `extension`
+   (`npm version x.y.0 --no-git-tag-version`, which also updates `package-lock.json`).
+3. Mark the phase done in `README.md` and `docs/PLAN.md`.
+4. Merge the feature PR into `development`, then the long-lived `development → main` PR (#2), whose
+   description is the release notes.
+5. After the merge to `main`: `git tag -a vx.y.0 <main's merge commit> -m "x.y.0: <phase>"` and
+   `git push origin vx.y.0`.
+
 ## Commit messages
 A short summary line (≤ 72 chars), a blank line, then bullet points for each area (extension,
 backend, frontend, docs). Write them for a reader of the history, not as a diary.

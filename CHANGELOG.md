@@ -5,6 +5,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-27
+
+The first release, closing Phase 2. It holds everything built so far:
+- **Phase 0:** foundations.
+- **Phase 1:** Google sign-in, bookmark sync from the extension with one-click connect, and the feed.
+- **Phase 2:** the background job queue, page fetching with the Needs sign-in and Dead links sections, and AI summaries on demand from a chain of free models, with a daily limit and the Limit reached dialog.
+- **The final design:** the newspaper front page, the detail panel, the account menu, Settings → Account, warm charcoal dark mode, the Masthead BB logo and its animations.
+
+Search, the Ask agent, tags and the digest come in later phases.
+
 ### Logo animations, a filled Delete account button and the docs
 
 #### Added
@@ -18,6 +28,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 #### Changed
 - **Delete account… is filled red** (owner): Settings → Account's button now uses the `deadFg` fill with `onDead` text, like the dialog's Delete everything, instead of a red outline.
+- **Version 0.2.0** for the backend, the frontend and the extension.
 - **Docs and skills brought up to date**:
   - README: status, the architecture with the model chain and Resend, project structure, every AI env var, and the API table's dev endpoints.
   - `docs/PLAN.md`: the LLM decision (the fallback chain), new decision rows (email, account data, feed paging, logo animations as CSS, not GIFs), the repo layout, the data model, and Phase 2 marked done.
@@ -336,3 +347,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Docs**
   - `docs/PLAN.md`: architecture, decisions and phased roadmap.
   - `CLAUDE.md` and project skills (`dev-setup`, `llm-patterns`, `langgraph-agent`, `db-migrations`, `deploy`).
+
+[Unreleased]: https://github.com/Mansi145/Bookmark-Brain/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Mansi145/Bookmark-Brain/releases/tag/v0.2.0

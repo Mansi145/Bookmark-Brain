@@ -12,7 +12,7 @@ It's a personal learning project for integrating AI agents into a real full-stac
 |---|---|---|
 | 0 | Foundations: monorepo, FastAPI, Postgres + pgvector, Alembic, React app | ✅ Done |
 | 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
-| 2 | Background job queue, page fetching, on-demand AI summaries (a fallback chain of free models), daily limit with a Limit reached dialog | ✅ Done |
+| 2 | Background job queue, page fetching, on-demand AI summaries (a fallback chain of free models), daily limit with a Limit reached dialog | ✅ Done (v0.2.0) |
 | 3 | Hybrid search: keyword + semantic (embeddings) | Planned |
 | 4 | "Ask your bookmarks" chat agent (LangGraph) | Planned |
 | 5–7 | Auto-tags, regular dead-link re-checks, weekly digest | Planned (Dead links, Find archived copy and read / unread are already in) |

@@ -123,7 +123,7 @@ Planned:
 - Feed with infinite scroll (keyset pagination) and folder/browser filters.
 - Added after: **one-click connect** (popup → `/connect` → content script; the page shows steps and bookmarks arriving during the first sync, then a summary with an Open your feed button) and the **extension icon**.
 
-**Phase 2: Ingestion + summaries (first AI integration). ✅**
+**Phase 2: Ingestion + summaries (first AI integration). ✅ Released in v0.2.0.**
 - ✅ `jobs` table, worker, safe page fetcher.
 - ✅ `fetch_page`: sync enqueues it for new documents; the handler extracts title, description and article text with `trafilatura` (under 50 words = no article), and reading time comes from the word count. Real-world result: roughly half of typical bookmarks yield article text; the rest are bot-protected (403), JavaScript apps or sign-in walls, which keep their title/description.
 - ✅ Dead links (404/410) form the **Dead links** section; `find_archive` looks up a Wayback copy only when the user clicks "Find archived copy" (`POST /api/bookmarks/{id}/find-archive`). Site logos are read from each page's `<head>`.
@@ -135,7 +135,7 @@ Planned:
 - ✅ The main feed is a **newspaper front page** (editions, newest unread biggest); only the lead story shows the page's preview image (`og:image`, loaded from the site; `find_image` backfills older pages).
 - ✅ The free-plan note next to AI actions and the per-user "Limit reached" dialog (email the maintainer). Any 429 from an AI action opens it; "Notify the maintainer" sends at most one email per user per day through Resend.
 - ✅ The top-bar logo animates while the app works: Page back while summarising, Rewind while a page loads, Hourglass while the Wayback Machine is asked.
-- Later: try Gemini's URL context tool for pages we couldn't read.
+- Not part of Phase 2, an idea for later: try Gemini's URL context tool for pages we couldn't read.
 - *You'll learn:* prompts, structured output, fallbacks, cost and quota control, async job processing.
 
 **Phase 3: Hybrid search.**
