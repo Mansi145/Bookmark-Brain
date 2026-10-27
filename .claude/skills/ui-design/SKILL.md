@@ -17,19 +17,23 @@ Artifact tool when you need exact markup.
 ## Tokens
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| bg | `#ECEAE7` | `#141517` | page (off-white, never pure white) |
-| panel | `#F5F4F2` | `#1B1C1F` | rounded panels behind the filters and behind the main feed |
-| surface | `#FBFAF8` | `#232427` | a card per article, inputs, pill buttons, empty-state box |
-| line | `#E2DFDA` | `#34363B` | borders, dividers |
-| ink | `#141516` | `#F2F2F4` | text, headings, primary buttons (white text) |
-| ink2 | `#2F3134` | `#C9CBD1` | secondary text, meta |
-| muted | `#45484B` | `#A8ABB2` | small labels, counts |
+| bg | `#ECEAE7` | `#1F1C1A` | page (off-white, never pure white) |
+| panel | `#F5F4F2` | `#262220` | rounded panels behind the filters and behind the main feed |
+| surface | `#FBFAF8` | `#2D2926` | a card per article, inputs, pill buttons, empty-state box |
+| line | `#E2DFDA` | `#423B36` | borders, dividers |
+| ink | `#141516` | `#EEE8E2` | text, headings, primary buttons (`onInk` text: `#FFFFFF` light, `#1F1C1A` dark) |
+| ink2 | `#2F3134` | `#CEC5BC` | secondary text, meta |
+| muted | `#45484B` | `#ACA298` | small labels, counts |
 | accent | `#503931` | `#503931` | selected filter / reading state, site tiles, step numbers, highlight boxes, empty-state icon |
 | accent2 | `#564D3A` | `#564D3A` | in-progress pills ("Fetching page…", "Summarising…"), alternate tiles |
 | band | `linear-gradient(90deg, #503931, #564D3A)` | same | every group header band |
 | onAccent / onAccent2 | `#FFFFFF` / `#EFE8E2` | same | text on accent, accent2 and band |
-| skeleton | `#E7E4DF` | `#2B2D31` | loading bars and progress-bar tracks (warm grey to sit on the off-whites) |
+| skeleton | `#E7E4DF` | `#3A3430` | loading bars and progress-bar tracks (warm grey to sit on the off-whites) |
 | deadBg / deadFg | `#F8E3E3` / `#7C1D1D` | `#3D2224` / `#F5B5B5` | dead link notice |
+
+**Dark mode is "warm charcoal"** (owner, 2026-10-27; compared on the canvas's Dark mode page): lifted,
+slightly warm greys with off-white text instead of near-black and bright white. Contrast on cards:
+text 11.9, `ink2` 8.5, `muted` 5.7.
 
 Theme follows the system (`prefers-color-scheme`). Text is near-black, never mid-grey; keep 4.5:1
 contrast, even for 12–13 px meta text. Define these as CSS variables / Tailwind `@theme` tokens once,
@@ -72,22 +76,27 @@ near-black text.
 **Rollout:** done everywhere (landing, How it works, feed, Settings, popup, Texture, logo tests).
 Nothing uses Cloudlifter any more.
 
-## Logo
-A cute brain (lobes, centre fissure, a few folds, pill eyes, small smile) on a bookmark-ribbon body
-with little arms. Line art: `#141516` strokes, 6 px, rounded caps/joins, even weight. Fill: radial
-"Mulberry" aura `#955E7D → #CA8FB9 (0.45) → #FFC0F5`, `userSpaceOnUse cx=100 cy=76 r=150 fy=70`,
-applied only as the fill of the brain and ribbon so colour never leaks outside the outline.
-SVG source: `extension/assets/icon/logo.svg` (reuse it in the web app). At ~30 px (top bar, popup
-header) use `logo-small.svg` (outline, eyes and ribbon, thicker strokes). Rejected styles, don't retry:
-grunge/chrome metal, robot head, heart, dry brush, zig-zag scribble, uneven stroke weight.
+## Logo: Masthead BB (final, owner 2026-10-27)
+Board `LogoFinal` (Components page) has both SVGs to copy. A backwards B and a B drawn as shapes
+(no font), sharing one spine and mirrored on the centre line, between newspaper rules, on a cream
+tile. Colours: tile `#F4EDE4`, letters `#141516`, rules `#503931` (accent). Same in both themes.
+- **Full version** (64 px and up): thick accent rule + thin ink rule above and below the letters;
+  tile corner radius 11 %.
+- **Small version** (under 64 px: top bars at 30–34 px, popup, favicon, extension icons 16–48 px):
+  thick rules only, letters 14 % bigger, radius 17 %. Tested at 16 px.
+- Lockups: top bar = small mark + "Bookmark Brain" (Aleo 21 px, white on the texture); sign-up hero =
+  full mark at 150 px + stacked "Bookmark / Brain" (Aleo 40 px).
+- Clear space: one eighth of the logo's size. Don't recolour or stretch it.
+- Previous logo (a cute brain on a bookmark ribbon with a Mulberry pink fill, `Logo`,
+  `LogoVariants`) and the twelve `LogoDirections` tests are kept on the canvas for reference only.
 
 ## Landing page and How it works (signed out), split 2026-10-23
 - **Landing / sign-up page** (`Login.dc.html`): one screen, entirely on the texture. Top bar (logo,
   How it works, Features, dark Sign in button), medium logo beside a stacked "Bookmark / Brain"
   wordmark, headline **"Saved it? Now actually use it."** (Aleo 64 px), the sign-in buttons, "Free ·
   Works with Chrome, Edge, Brave and Firefox", a clearly visible outlined pill **"See how it works →"**
-  linking to the How it works page, an image-free product preview card (a mini feed: dark "Today ·
-  2 bookmarks" band, one summarised row and one with the Summarise button, site logos on white chips),
+  linking to the How it works page, an image-free product preview card (a mini front page: band rule, "Today's edition" masthead,
+  a lead story with summary and two briefs, one with Summarise; site logos on white chips),
   and the footer on the texture.
 - **Sign-in buttons**: dark (`#141516`, 1 px `#8E918F` border, white text, 52 px) with the real
   marks: Google's four-colour **G** (Google's sign-in guidelines use the G, not the Gmail logo) and
@@ -95,8 +104,9 @@ grunge/chrome metal, robot head, heart, dry brush, zig-zag scribble, uneven stro
   GitHub sign-in needs backend work.
 - **How it works page** (`HowItWorks.dc.html`): texture header band with the top bar (How it works
   current) and an Aleo 56 px "How it works" title; then the 3 steps (step 2 = click **Connect this
-  browser**), "What it does with your bookmarks" (`#features`: summaries, search by meaning, ask your
-  bookmarks, plus dead links / reading status / digest), a closing call to action on the texture with
+  browser**), "What it does with your bookmarks" (`#features`: **your own front page** with the same mini
+  front page as the landing preview, then summaries (on Summarise), search by meaning, ask your
+  bookmarks, plus dead links (archived copy on request) / reading status / digest), a closing call to action on the texture with
   the same sign-in buttons, and the footer.
 
 ## App shell and feed (signed in), updated 2026-10-23
@@ -178,8 +188,8 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
   bookmark read** (owner): the button stays "Mark as read" until the user presses it. Pressing it
   (`MarkAsRead` board): in the Unread view the story fades and folds out (~250 ms; instant with
   reduced motion) and the button becomes **Mark as unread**; switching to Read shows it there, faded,
-  with Mark as unread, which moves it back the same way. A "Moved to Read · Undo" notice is only a
-  suggestion. Not
+  with Mark as unread, which moves it back the same way. No undo notice (owner). In **All
+  bookmarks** the story stays where it is and only its button changes. Not
   summarised yet (`FeedDetailUnsummarised`): the card shows the site's own description, a muted
   "The site's own description…" line and the Summarise button, and there's no Re-summarise. Tags (outlined pills with remove ×; AI
   suggestions dashed with ✓ / ×; "Add tag"); Details (browsers/folders, full URL).
@@ -234,7 +244,7 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
   Then Sending… → "Thanks, the maintainer knows". **Per user** (owner wants the data): every
   signed-in person can send it each time they hit the limit, no "already reported" state; the
   email carries their account email and the time, and the dialog says so under the button.
-  Suggested, not yet approved: "couldn't send" (Try again).
+  No "couldn't send" screen or retry button (owner): the states are only default, Sending…, Sent.
 - **Newspaper feed: the owner chose the classic front page** (`NewsClassic`). It replaces the
   date-grouped list: Today / This week / Earlier are editions, each one `surface` sheet with a
   masthead (band rule, Aleo title centred between the date and counts, double rule under it) and
@@ -243,8 +253,22 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
   paragraph) show in full on the lead, 5 lines on second stories, 3 on standard, none on briefs; only the top lead shows the page's
   preview image (16:9, caption "Image from <site>"; no image → a text-only lead). `NewsGrid` and
   `NewsSections` were the other trials.
-- Connect also has three states the build added, on the board as 7–9 with their wording **waiting
-  for the owner's review**: "Connected, but the first sync failed" (the extension's error + Go to
+  Built into `Main` (Home · feed) and every board that imports it:
+  - **Sections**: Needs sign-in and Dead links are one sheet each (small masthead, standard stories
+    in 3 ruled columns, each with its state line); empty states as before.
+  - **Story states** (`RowStates`): Summarise idle / working / done / failed; page fetching /
+    couldn't read / needs sign-in / subscribers only / site's own description / read; dead link not
+    looked up / checking / copy found / found and summarised / no copy / couldn't reach. A state label
+    pill sits above each example only on that board. Daily limit → the Limit reached dialog.
+  - **Search** (`FeedSearch`): one sheet, masthead is the query in quotes, best match as a second-size
+    story beside two briefs, then standard results; matched words on `accent` with white text.
+  - **Loading** (`FeedLoading`): the front page's shape in `skeleton` bars (pulsing, still with
+    reduced motion) + "Loading your front page…".
+  - **Phone** (`FeedPhone`, `FeedPhoneDark`, 390 px): every column stacks into one, rules become
+    horizontal dividers, sheet padding 18 px, masthead 30 px; sidebar and top bar stack above.
+  - First run: "Your bookmarks will show up here as your own front page."
+- Connect also has three states the build added, on the board as 7–9; the owner
+  approved their wording: "Connected, but the first sync failed" (the extension's error + Go to
   your feed), "Something went wrong" (the token couldn't be made; Try again) and "Connect from the
   extension" (page opened without the extension's link; Connect by hand).
 
@@ -278,20 +302,9 @@ and "Manage connected browsers in Settings" at the bottom. Status card per state
 
 Dark mode: Settings and the popup use the dark tokens; the dark texture is the same in both themes.
 
-## Logo direction (owner, 2026-10-27)
-The owner chose **"Masthead BB"** from `LogoDirections` (direction 9): a backwards Aleo bold B and a
-B mirrored around one spine, between newspaper rules (thick `accent` rule + thin `ink` rule above and
-below) on a cream `#F4EDE4` tile. It matches the newspaper feed. Not yet rolled out: the boards and
-the build still use the brain logo until the owner approves a finished version (lettering turned into
-outlines, a small-size version, lockup with the wordmark).
-
 ## Later (owner's backlog, don't design until they say so)
-- **Logo colour**: pick a fill and outline (near-black vs cream) from `LogoVariants.dc.html`; the
-  near-black outline is hard to see on the dark top bars.
 - **Logo animation**: animate the top-left logo while searching, summarising or checking the
   Wayback Machine. Style not decided yet.
-- **Dark mode background**: the dark theme's near-black page (`#141517`) feels completely black;
-  needs reworking.
 
 ## Rules
 - Real `<button>`, `<a href>`, `<label>`; `aria-label` on icon buttons; visible focus; touch targets

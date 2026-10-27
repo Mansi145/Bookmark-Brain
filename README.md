@@ -126,6 +126,7 @@ The API runs at http://localhost:8000, with the background job worker running in
 | `GROQ_API_KEY` | Phase 2+ | fallback model |
 | `LANGSMITH_API_KEY` | Phase 4 | optional tracing |
 | `AI_DAILY_LIMIT_PER_USER` | Phase 2+ | protects the free-tier quota |
+| `RESEND_API_KEY` / `MAINTAINER_EMAIL` | optional | "Notify the maintainer" in the Limit reached dialog ([Resend](https://resend.com), free 100 emails a day). Without your own domain, `MAINTAINER_EMAIL` must be the address you signed up to Resend with. `EMAIL_FROM` overrides the sender |
 | `WORKER_ENABLED` | optional | `false` runs the API without the background job worker (default `true`) |
 
 In production also set `SESSION_COOKIE_SECURE=true` and `SESSION_COOKIE_SAMESITE=none`, because the frontend and API are on different domains.
@@ -209,6 +210,7 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET / PATCH | `/api/bookmarks/{id}` | cookie or token | one bookmark (detail panel) / mark it read or unread |
 | POST | `/api/bookmarks/{id}/summarise` | cookie or token | AI summary on demand (`again=true` to redo); cached per URL, counted against the daily limit |
 | GET | `/api/usage` | cookie or token | today's summaries used, the daily limit, when it resets |
+| POST | `/api/usage/notify-maintainer` | cookie or token | email the owner that this user hit today's limit (once a day per user; 409 if not at the limit, 503 if email isn't set up, 502 if Resend refused) |
 
 ## Troubleshooting
 

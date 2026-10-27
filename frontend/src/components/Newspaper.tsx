@@ -127,13 +127,20 @@ function EditionSheet(props: {
         </div>
       )}
 
-      {rest.length > 0 && (
-        <Row columns={4} first={layout === 'briefs'}>
-          {rest.map((b) => story(b, 'brief'))}
+      {/* Briefs come in rows of four, each with a rule above it (the board's "This week"). */}
+      {chunks(rest, 4).map((row, i) => (
+        <Row key={row[0].id} columns={4} first={layout === 'briefs' && i === 0}>
+          {row.map((b) => story(b, 'brief'))}
         </Row>
-      )}
+      ))}
     </section>
   )
+}
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = []
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size))
+  return rows
 }
 
 /** A row of stories with thin column rules; `first` = it starts the sheet (no rule above). */
@@ -174,15 +181,15 @@ const TITLE: Record<Size, string> = {
 // How much of the summary each size shows (owner): the lead all of it, a second 5 lines, a
 // standard 3, a brief none (headline and meta only). The detail panel always has it all.
 const TEXT: Record<Size, string | null> = {
-  lead: 'text-[19px]',
-  second: 'text-[15px] line-clamp-5',
-  standard: 'text-sm line-clamp-3',
+  lead: 'text-lg leading-[1.55]',
+  second: 'text-[15px] leading-[1.5] line-clamp-5',
+  standard: 'text-sm leading-[1.5] line-clamp-3',
   brief: null,
 }
 
 function Story(props: { bookmark: Bookmark; size: Size; faded: boolean; leaving: boolean }) {
   const { bookmark, size } = props
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const detail = new URLSearchParams(params)
   detail.set('bookmark', String(bookmark.id))
 
@@ -207,18 +214,27 @@ function Story(props: { bookmark: Bookmark; size: Size; faded: boolean; leaving:
           {folder.split('/').join(' / ')}
         </span>
       )}
-      <h3 className={`font-serif font-bold tracking-[-0.01em] ${TITLE[size]}`}>
+      {/* wrap-anywhere: a title that's a bare URL has no spaces and would spill into the next column. */}
+      <h3 className={`font-serif font-bold tracking-[-0.01em] wrap-anywhere ${TITLE[size]}`}>
         <Link to={{ search: detail.toString() }} className="text-ink no-underline hover:underline">
           {bookmark.title}
         </Link>
       </h3>
 
       {bookmark.status === 'pending' && <ProgressPill bar={false}>Fetching page…</ProgressPill>}
-      {summarised && TEXT[size] && <p className={`m-0 leading-[1.5] text-ink2 ${TEXT[size]}`}>{bookmark.summary}</p>}
-      {!summarised && canSummarise(bookmark) && <SummariseAction bookmark={bookmark} />}
+      {summarised && TEXT[size] && <p className={`m-0 text-ink2 ${TEXT[size]}`}>{bookmark.summary}</p>}
+      {/* A brief never shows its summary, so Summarise there opens the detail panel to show it
+          arriving (owner). */}
+      {!summarised && canSummarise(bookmark) && (
+        <SummariseAction
+          bookmark={bookmark}
+          compact={size === 'brief'}
+          onStarted={size === 'brief' ? () => setParams(detail) : undefined}
+        />
+      )}
 
       <span className={`flex min-w-0 items-center gap-2 text-ink2 ${size === 'brief' ? 'text-xs' : 'text-[13px]'}`}>
-        <SiteIcon iconUrl={bookmark.icon_url} site={bookmark.site} />
+        <SiteIcon iconUrl={bookmark.icon_url} site={bookmark.site} brief={size === 'brief'} />
         <span className="truncate">{meta.filter(Boolean).join(' · ')}</span>
       </span>
     </article>

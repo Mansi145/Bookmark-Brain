@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { api } from '../api/client'
 import type { User } from '../api/types'
 import { useTheme } from '../hooks/useTheme'
+import { LimitDialogHost } from './LimitDialog'
 import Logo from './Logo'
 import Nebula from './Nebula'
 
@@ -71,6 +72,7 @@ export default function Layout({ user }: { user: User }) {
         </div>
       </header>
       <Outlet />
+      <LimitDialogHost />
     </div>
   )
 }

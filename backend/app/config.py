@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     # share them; this stops one person from using up the day.
     ai_daily_limit_per_user: int = 50
 
+    # Email (app/services/mail.py), for the Limit reached dialog's "Notify the maintainer".
+    # Resend's free plan: 100 emails a day. Without your own domain, Resend only sends from its
+    # test address, and only to the address you signed up with, so MAINTAINER_EMAIL must be
+    # that address. Leave the key empty to switch the button off (it then answers 503).
+    resend_api_key: str = ""
+    maintainer_email: str = ""
+    email_from: str = "Bookmark Brain <onboarding@resend.dev>"
+
     # Phase 7: cron endpoints.
     internal_cron_secret: str = ""
 

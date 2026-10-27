@@ -1,11 +1,13 @@
-// The 36 px outlined row action (Summarise, Find archived copy, Try again) and the small
-// stroke icons used on rows (design board RowStates).
+// The 36 px outlined row action (Summarise, Find archived copy, Try again; 32 px and 13 px text
+// when `compact`, on the newspaper's briefs) and the small stroke icons used on rows (design
+// boards RowStates and NewsClassic).
 
 export function RowButton(props: {
   icon?: React.ReactNode
   onClick: () => void
   disabled?: boolean
   label?: string // aria-label, when the visible text needs more context
+  compact?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -14,7 +16,7 @@ export function RowButton(props: {
       onClick={props.onClick}
       disabled={props.disabled}
       aria-label={props.label}
-      className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink hover:bg-skeleton disabled:cursor-default disabled:opacity-50 disabled:hover:bg-surface"
+      className={`flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 font-medium ${props.compact ? 'h-8 text-[13px]' : 'h-9 text-sm'} text-ink hover:bg-skeleton disabled:cursor-default disabled:opacity-50 disabled:hover:bg-surface`}
     >
       {props.icon && <Icon>{props.icon}</Icon>}
       {props.children}

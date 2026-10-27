@@ -5,6 +5,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### New logo, the Limit reached dialog and the free-plan note
+
+#### Added
+- **Limit reached dialog** (design board LimitDialog): opens when Summarise or Re-summarise is refused because today's AI allowance is used up. It explains why and when it comes back (midnight UTC), and **Notify the maintainer** emails the owner the user's account email and the time they hit the limit. States: default, Sending…, "Thanks, the maintainer knows". If the email fails the button simply comes back; there's no "couldn't send" screen.
+- **`POST /api/usage/notify-maintainer`**: sends that email through [Resend](https://resend.com) (`app/services/mail.py`, one HTTPS call; free plan 100 emails a day). Only for users who really are at the limit (409 otherwise), and at most once per user per day: a second press answers 204 without sending, which keeps the email quota safe. Claimed and set in one SQL statement so a double click sends one email; if Resend refuses, the claim is undone so the user can try again (502). Off without `RESEND_API_KEY` / `MAINTAINER_EMAIL` (503). Sent in the request, not as a job, so the dialog only says "sent" once it has.
+- **`ai_usage.limit_reached_at` and `maintainer_notified_at`** (migration `0008`): when each user was first refused that day and when they told the maintainer, so the owner can see who runs out and when.
+- **Free-plan note** under the detail panel's buttons: "Bookmark Brain is a personal learning project on free plans. AI features share a small daily limit and may stop early." (`FreePlanNote`, ready for the Ask composer.)
+
+#### Changed
+- **New logo, "Masthead BB"** (design board LogoFinal): a backwards B and a B sharing one spine, between newspaper rules on a cream tile, the same in both themes. The full version (64 px and up) is on the sign-up page; the small one is in the top bars, Connect, the error pages, the extension popup, the favicon and the 16/32/48 px extension icons (128 px uses the full version). Replaces the brain logo everywhere.
+- **Summarise on a brief opens the detail panel** (owner): briefs never show a summary, so before this the button just disappeared when the summary finished and nothing seemed to happen. The panel opens once the server has accepted the request (so at the daily limit only the Limit reached dialog shows) and the summary appears there as it arrives. Bigger stories still show theirs in place.
+- **At the daily limit, Summarise and Re-summarise stay clickable** and open the Limit reached dialog, instead of being disabled with "Daily summary limit reached · resets at midnight UTC" (design board Story states). The unused `useUsage` hook is gone; `GET /api/usage` stays.
+- **Newspaper briefs** match the board more closely: they come in rows of four, each row with a full-width rule above it; briefs use a smaller Summarise button (32 px, 13 px text) and an 18 px site-icon chip; the lead's summary is 18 px.
+
+#### Fixed
+- **A title with no spaces (a bare URL) no longer spills into the next column**: bookmark titles in the newspaper, the lists and the detail panel break inside a word that's too long for its column.
+
+#### Notes
+- Designed but not built yet: the warm charcoal dark mode, keeping a read story in place in All bookmarks, the newspaper versions of Needs sign-in / Dead links / story states / loading / phone width, the sign-up preview and How it works updates, and what Earlier's "N more from earlier" button does. Search waits for Phase 3.
+
 ### AI summaries, the bookmark detail panel and the newspaper feed
 
 #### Added
@@ -86,6 +106,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Not built yet, all designed: the Summarise button and the bookmark detail panel (next step), search (Phase 3), the Ask page (Phase 4), tags (Phase 5), the Digest page (Phase 7), sorting, the row "⋯" menu, and Settings' AI usage and Account sections. The Ask and Digest tabs join the top bar when their pages exist.
 
 ### Design (canvas)
+- Softer "warm charcoal" dark mode everywhere; every feed screen rebuilt as the newspaper front page (sections, story states, search, loading, phone width); sign-up preview and How it works updated to match. Not built yet.
+- Connect states 7–9 wording approved.
+- Limit reached dialog has no "couldn't send" state.
+- Final logo: Masthead BB (mirrored BB between newspaper rules), now on every screen; the old brain logo is kept for reference. Mark as read: no undo notice; in All bookmarks a read story stays in place.
 - Mark as read moves a story to Read with a Mark as unread button; logo direction chosen (Masthead BB), not rolled out yet.
 - Opening a bookmark no longer marks it read; detail panel 'not summarised yet' state; AI usage removed from Settings; newspaper summary lengths per story size; logo directions with a BB monogram (exploration).
 - Feed redesigned as a classic newspaper front page (editions, newest unread biggest, image on the top lead only); a free-plan note next to AI actions; a 'Limit reached' dialog that lets each user notify the maintainer. Not built yet.

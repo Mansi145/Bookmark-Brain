@@ -220,3 +220,7 @@ class AiUsage(Base):
     )
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     summaries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # When a Summarise was first refused that day, and when the user emailed the maintainer
+    # about it from the Limit reached dialog (at most once a day; see api/usage.py).
+    limit_reached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintainer_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -80,6 +80,7 @@ token* in the popup. Details in the `extension` skill.
 | `GROQ_API_KEY` | fallback LLM, Phase 2+ |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT` | agent/chain traces |
 | `AI_DAILY_LIMIT_PER_USER` | quota guard |
+| `RESEND_API_KEY`, `MAINTAINER_EMAIL`, `EMAIL_FROM` | "Notify the maintainer" emails (Resend, free plan); optional, the button answers 503 without them. Without a verified domain `MAINTAINER_EMAIL` must be your Resend sign-up address |
 | `INTERNAL_CRON_SECRET` | protects `/internal/*` endpoints (Phase 7) |
 
 Never print `.env` values; check whether a var is set with e.g.

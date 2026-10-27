@@ -3,16 +3,17 @@ import { useEffect, useRef } from 'react'
 import { api } from '../api/client'
 import type { Bookmark } from '../api/types'
 import { useSummarise } from '../hooks/useSummarise'
-import { useUsage } from '../hooks/useUsage'
 import { age, capitalize } from '../lib/format'
 import { LEAVE_MS, updateCachedBookmark } from '../lib/cache'
 import { canSummarise } from '../lib/summaries'
+import FreePlanNote from './FreePlanNote'
 import SiteIcon from './SiteIcon'
 import { SummariseAction } from './Summarise'
 
 // Bookmark detail (design board FeedDetail): a 480 px panel from the right over a dark
 // backdrop (full screen on phones). Close button; site; title; when it was saved; Open page,
-// Mark as read, Re-summarise; the summary and key points; where it's saved and the full URL.
+// Mark as read, Re-summarise; the free-plan note; the summary and key points; where it's saved
+// and the full URL.
 // The design's Tags section waits for tagging (Phase 5).
 
 export default function BookmarkDetail({ id, onClose }: { id: number; onClose: () => void }) {
@@ -96,13 +97,15 @@ function Details({ bookmark }: { bookmark: Bookmark }) {
   return (
     <>
       <div className="flex flex-col gap-3">
-        <h2 id="detail-title" className="font-serif text-[30px] leading-[1.15] font-bold">
+        <h2 id="detail-title" className="font-serif text-[30px] leading-[1.15] font-bold wrap-anywhere">
           {bookmark.title}
         </h2>
         <p className="-mt-1 text-[13px] text-ink2">{saved.filter(Boolean).join(' · ')}</p>
       </div>
 
       <Actions bookmark={bookmark} />
+      {/* Tucked under the buttons (board: -6 px inside the panel's 20 px gap). */}
+      <FreePlanNote className="-mt-1.5" />
 
       {canSummarise(bookmark) && (
         <section aria-labelledby="detail-summary" className="rounded-xl border border-line bg-surface px-5 py-[18px]">
@@ -164,7 +167,6 @@ function Actions({ bookmark }: { bookmark: Bookmark }) {
     },
   })
   const summarise = useSummarise(bookmark.id)
-  const { limitReached } = useUsage()
   const outline =
     'flex h-10 cursor-pointer items-center rounded-[10px] border border-line bg-surface px-3.5 font-medium text-ink disabled:cursor-default disabled:opacity-50'
 
@@ -195,13 +197,7 @@ function Actions({ bookmark }: { bookmark: Bookmark }) {
         {read ? 'Mark as unread' : 'Mark as read'}
       </button>
       {bookmark.summary_status === 'done' && canSummarise(bookmark) && (
-        <button
-          type="button"
-          onClick={() => summarise.mutate(true)}
-          disabled={summarise.isPending || limitReached}
-          title={limitReached ? 'Daily summary limit reached · resets at midnight UTC' : undefined}
-          className={outline}
-        >
+        <button type="button" onClick={() => summarise.mutate(true)} disabled={summarise.isPending} className={outline}>
           Re-summarise
         </button>
       )}

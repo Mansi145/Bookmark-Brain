@@ -2,11 +2,14 @@
 
 Only summaries that will actually call a model count. Opening a summary someone else
 already made (documents are shared) is free.
+
+The same row records when the user was first refused that day and when they told the
+maintainer about it (the Limit reached dialog), so the owner can see who runs out and when.
 """
 
 from datetime import UTC, date, datetime, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,3 +53,49 @@ async def take_summary(session: AsyncSession, user_id: int) -> bool:
         .returning(AiUsage.summaries)
     )
     return (await session.scalar(statement)) is not None
+
+
+async def limit_reached(session: AsyncSession, user_id: int) -> bool:
+    return await summaries_used(session, user_id) >= get_settings().ai_daily_limit_per_user
+
+
+async def note_limit_reached(session: AsyncSession, user_id: int) -> None:
+    """Remember when a Summarise was first refused today (the time goes in the email)."""
+    statement = (
+        insert(AiUsage)
+        .values(user_id=user_id, day=today(), limit_reached_at=func.now())
+        .on_conflict_do_update(
+            index_elements=[AiUsage.user_id, AiUsage.day],
+            set_={"limit_reached_at": func.now()},
+            where=AiUsage.limit_reached_at.is_(None),
+        )
+    )
+    await session.execute(statement)
+
+
+async def claim_notice(session: AsyncSession, user_id: int) -> datetime | None:
+    """Mark today's maintainer email as sent, if it isn't yet. Returns when the user hit the
+    limit (now, if that wasn't recorded), or None if they already told the maintainer today.
+
+    Like take_summary, one statement checks and sets, so a double click sends one email.
+    """
+    statement = (
+        insert(AiUsage)
+        .values(user_id=user_id, day=today(), maintainer_notified_at=func.now())
+        .on_conflict_do_update(
+            index_elements=[AiUsage.user_id, AiUsage.day],
+            set_={"maintainer_notified_at": func.now()},
+            where=AiUsage.maintainer_notified_at.is_(None),
+        )
+        .returning(func.coalesce(AiUsage.limit_reached_at, func.now()))
+    )
+    return await session.scalar(statement)
+
+
+async def release_notice(session: AsyncSession, user_id: int) -> None:
+    """The email didn't go: let the user try again."""
+    await session.execute(
+        update(AiUsage)
+        .where(AiUsage.user_id == user_id, AiUsage.day == today())
+        .values(maintainer_notified_at=None)
+    )

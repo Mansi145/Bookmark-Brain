@@ -272,6 +272,9 @@ async def summarise_bookmark(
     )
     if not already:
         if not await usage.take_summary(session, user.id):
+            # The app opens the Limit reached dialog; its email says when this happened.
+            await usage.note_limit_reached(session, user.id)
+            await session.commit()
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Daily summary limit reached")
         document.summary_status = "working"
         await enqueue(session, "summarise", [{"document_id": document.id, "title": bookmark.title}])

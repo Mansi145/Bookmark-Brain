@@ -41,7 +41,7 @@ export default function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
 
         <Link
           to={{ search: detail.toString() }}
-          className="font-serif text-[21px] leading-[1.25] font-bold text-ink no-underline hover:underline"
+          className="font-serif text-[21px] leading-[1.25] font-bold wrap-anywhere text-ink no-underline hover:underline"
         >
           {bookmark.title}
         </Link>
