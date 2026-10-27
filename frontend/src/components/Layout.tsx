@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { api } from '../api/client'
 import type { User } from '../api/types'
 import { useTheme } from '../hooks/useTheme'
+import DevTools from './DevTools'
 import { LimitDialogHost } from './LimitDialog'
 import Logo from './Logo'
 import Nebula from './Nebula'
@@ -73,6 +74,8 @@ export default function Layout({ user }: { user: User }) {
       </header>
       <Outlet />
       <LimitDialogHost />
+      {/* Dev build only (`npm run dev`); left out of production builds. */}
+      {import.meta.env.DEV && <DevTools />}
     </div>
   )
 }

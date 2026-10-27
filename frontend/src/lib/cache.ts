@@ -24,3 +24,10 @@ export function updateCachedBookmark(queryClient: QueryClient, updated: Bookmark
     return old.id === updated.id ? updated : old
   })
 }
+
+/**
+ * Stories marked read while looking at All bookmarks during this visit. They keep their place
+ * and look in the newspaper (design board MarkAsRead: "only its button changes") instead of
+ * jumping to the end, faded; after a reload they sit with the other read stories.
+ */
+export const keptInPlace = new Set<number>()

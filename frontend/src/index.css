@@ -30,6 +30,19 @@
   --font-serif: "Aleo", Georgia, serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
 
+  /* The newspaper's one breakpoint (design boards FeedPhone): at 760 px and below every column
+     stacks into one and rules become horizontal dividers; `wide:` is everything above. */
+  --breakpoint-wide: 47.5625rem; /* 761 px */
+
+  /* Loading bars (Fetching page, Summarising, the loading front page): a soft pulse, still
+     with reduced motion (use with motion-reduce:animate-none). */
+  --animate-sk: sk 1.6s ease-in-out infinite;
+  @keyframes sk {
+    50% {
+      opacity: 0.55;
+    }
+  }
+
   /* Progress bar with no known end (first sync, server waking up): a segment sliding across. */
   --animate-slide: slide 1.6s ease-in-out infinite;
   /* A story leaving the current view (just marked read in Unread, or unread in Read): it
@@ -58,35 +71,37 @@
   }
 }
 
-/* Dark theme: follows the system setting until the top-bar toggle is pressed, which stores the
-   choice and sets <html data-theme="light|dark"> (see useTheme). The token list is repeated
-   because CSS can't share one block between a media query and an attribute selector. */
+/* Dark theme, "warm charcoal" (owner, ui-design skill): lifted, slightly warm greys with off-white
+   text instead of near-black and bright white. Follows the system setting until the top-bar
+   toggle is pressed, which stores the choice and sets <html data-theme="light|dark"> (see
+   useTheme). The token list is repeated because CSS can't share one block between a media
+   query and an attribute selector. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-bg: #141517;
-    --color-panel: #1b1c1f;
-    --color-surface: #232427;
-    --color-line: #34363b;
-    --color-ink: #f2f2f4;
-    --color-ink2: #c9cbd1;
-    --color-muted: #a8abb2;
-    --color-on-ink: #17181a;
-    --color-skeleton: #2b2d31;
+    --color-bg: #1f1c1a;
+    --color-panel: #262220;
+    --color-surface: #2d2926;
+    --color-line: #423b36;
+    --color-ink: #eee8e2;
+    --color-ink2: #cec5bc;
+    --color-muted: #aca298;
+    --color-on-ink: #1f1c1a;
+    --color-skeleton: #3a3430;
     --color-dead-bg: #3d2224;
     --color-dead-fg: #f5b5b5;
   }
 }
 
 :root[data-theme="dark"] {
-  --color-bg: #141517;
-  --color-panel: #1b1c1f;
-  --color-surface: #232427;
-  --color-line: #34363b;
-  --color-ink: #f2f2f4;
-  --color-ink2: #c9cbd1;
-  --color-muted: #a8abb2;
-  --color-on-ink: #17181a;
-  --color-skeleton: #2b2d31;
+  --color-bg: #1f1c1a;
+  --color-panel: #262220;
+  --color-surface: #2d2926;
+  --color-line: #423b36;
+  --color-ink: #eee8e2;
+  --color-ink2: #cec5bc;
+  --color-muted: #aca298;
+  --color-on-ink: #1f1c1a;
+  --color-skeleton: #3a3430;
   --color-dead-bg: #3d2224;
   --color-dead-fg: #f5b5b5;
 }

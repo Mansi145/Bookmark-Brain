@@ -31,7 +31,7 @@ This is a learning project to understand how AI agents are integrated into real 
 | Summaries | **On demand**: a *Summarise* button on every bookmark; nothing is summarised automatically. Results are cached per URL | Saves the shared free-tier quota for pages someone actually wants summarised. Pages without stored text are summarised from their title and description. Every summary records its source (page / archive / metadata), but the UI shows them all the same way (owner's decision: badges made the app look unreliable). |
 | Needs sign-in | Pages that need an **account or subscription** (sign-in redirects, password forms, logged-in web apps, `isAccessibleForFree: false`) get their own **Needs sign-in** section | We fetch anonymously, so these only ever show a sign-in screen. Detection uses signs sites leave, without network calls; bot challenges (403) are not sign-in. These URLs are never sent to archive.org, since they may be private. |
 | Dead links | Pages that are **dead (404/410)** live in a separate **Dead links** section, never in the main feed. The Wayback Machine is asked **only when the user clicks "Find archived copy"** on a dead row | Keeps the feed about pages that work today. Automatic lookups sent many URLs to a third party and hit archive.org's rate limits; on demand, a user chooses each lookup. Private-looking URLs are never sent. |
-| Preview images | **None.** We don't fetch or show `og:image` | Many bookmarks (docs, references) have no image or a generic logo; hotlinked images break or get blocked; an image block takes a third of the card. The feed is a text-first reading list instead. |
+| Preview images | **Only on the top story.** The page's `og:image` URL is read while fetching; the reader's browser loads it from the site | Many bookmarks (docs, references) have no image or a generic logo, so the feed stays text-first; one image on the lead makes the front page look like a newspaper. If it fails to load, the lead is text-only. |
 | Quota protection | Summaries/embeddings cached **per URL** (shared across users); per-user daily AI limits | Free quotas are per API key, so every user shares the same daily limit. |
 | Repo | One monorepo for backend, frontend and extension | Shared docs, one PR per feature across all three, simpler for a solo project. |
 
@@ -42,7 +42,7 @@ Designs live on the Claude design canvas (https://claude.ai/artifact/88oGw1iJQJW
 - **Accents**: always the dark Nude colours (`#503931`, `#564D3A`) with white text, never light tints, in both themes. **Fonts**: Aleo (headings, titles), Geist (UI). Light and dark themes: follows the system, with a toggle in the top bar.
 - **Logo**: "Masthead BB", a backwards B and a B sharing one spine, between newspaper rules on a cream tile (same in both themes). A full version for 64 px and up and a small one for top bars, the popup, the favicon and the extension icons.
 - **Sign-up page**: one screen on the texture with "Saved it? Now actually use it.", dark Google + GitHub sign-in buttons with the real marks, an image-free preview of the feed, and a link to a separate **How it works** page (steps, features, closing call to action).
-- **App**: top nav Feed · Ask · Digest · Settings. The feed is a filter sidebar (Browsers, Folders, Tags) plus an image-free **reading list** grouped by save date (Today / This week / Earlier) under dark bands, with a bar for All · Unread · Read | Needs sign-in · Dead links. Each row: site logo · site · folder · browser · age, Aleo title, two-line summary or a **Summarise** button, reading time. Clicking a row opens a detail side panel. Search results replace the feed; Ask is a chat with a sources rail; Digest is a weekly page.
+- **App**: top nav Feed · Ask · Digest · Settings. The feed is a filter sidebar (Browsers, Folders, Tags) plus a **newspaper front page**: Today / This week / Earlier are editions (one sheet each, a masthead, thin column rules), the newest unread stories are biggest (lead → second → standard → brief) and read ones go last, faded. A bar above it switches All · Unread · Read | Needs sign-in · Dead links; those two sections are one sheet each. Each story: site logo · site · read time · age, Aleo headline, its state line, the summary (full on the lead, fewer lines as stories get smaller, none on briefs) or a **Summarise** button. Clicking a headline opens a detail side panel. One column at 760 px and below. Search results replace the feed; Ask is a chat with a sources rail; Digest is a weekly page.
 - **Later**: logo colour, a logo animation while searching / summarising / checking the Wayback Machine, and a softer dark-mode background.
 
 ## Architecture
@@ -80,7 +80,7 @@ bookmark_brain/
 ├── frontend/src/
 │   ├── api/                     fetch client + types (mirror schemas.py)
 │   ├── pages/                   Login, Feed, Settings, Connect
-│   ├── components/              Layout, BookmarkCard
+│   ├── components/              Layout, Newspaper (feed), StoryParts, BookmarkDetail
 │   └── hooks/                   useMe
 └── extension/
     ├── entrypoints/             background.ts (sync), connect.content.ts, popup/

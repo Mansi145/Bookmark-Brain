@@ -117,11 +117,14 @@ shows the empty state, `dark` the dark theme), `FeedSignIn`, `FeedDead`, `FeedSi
   search field (`rgba(23,24,26,.55)`, 1 px `rgba(255,255,255,.18)`, "Search by meaning or keyword…",
   `/` shortcut); **tabs Feed · Ask · Settings only** (owner: the sections are NOT in the top nav; the
   current tab on `rgba(255,255,255,.14)`, weight 600); a quiet **How it works** link with a
-  help icon (to the How it works page); a white round account button. Before the How it works link:
-  a **light / dark toggle** (owner, 2026-10-23): 40 px round button, 1 px `rgba(255,255,255,.3)`
-  border on `rgba(255,255,255,.08)`, white moon icon in light mode / sun in dark, `aria-label="Dark
-  mode"` + `aria-pressed`. It defaults to the system setting until pressed; remember the choice.
-  Same on Settings.
+  help icon (to the How it works page); a white round account button (the user's initial).
+  **No theme button in the top bar any more** (owner, 2026-10-27): the light / dark switch lives in
+  the account menu. The theme still defaults to the system setting until changed; remember the choice.
+- **Account menu** (`AccountMenu`, `AccountMenuDark`): the account button (`aria-haspopup="menu"`,
+  `aria-expanded`) opens a 272 px `surface` card under it, right-aligned, 1 px `line`, radius 14 px,
+  soft shadow: avatar initial on `accent` + name + email, then rows (40 px, icon + label)
+  **Settings**, **How it works**, **Dark mode** with a switch (`menuitemcheckbox`, track `accent`
+  when on, `line` when off, white knob), a divider, **Sign out**. Closes on Escape or a click outside.
 - **Three feed sections**, each bookmark in exactly one: **Feed** (pages we can read), **Needs
   sign-in** (needs an account: "Needs sign-in", or a subscription: "Subscribers only") and **Dead
   links** (links we can't fetch that no longer load on the internet, e.g. 404/410). **There is no
@@ -287,6 +290,18 @@ radius 12 px, Aleo 21 px headings:
   button in `deadFg`.
 - **No AI usage section** (owner): users aren't shown AI usage at all. The only hint is the
   free-plan note and, when it happens, the Limit reached dialog.
+- **Account** (`SettingsAccount`, `SettingsAccountDark`; Settings `section="account"`), three cards:
+  - **Your account**: 56 px avatar initial on `accent`, name, email, "Signed in with Google" (or
+    GitHub) with the provider's mark, an outlined **Sign out** button, and "Your name and picture
+    come from your Google or GitHub account. Change them there."
+  - **Download my data**: "A JSON file with your bookmarks, folders, browsers, read states, tags and
+    their summaries. It's ready in a few seconds." + **Download my data** (`ink`, download icon).
+  - **Delete account** (heading in `deadFg`): "Permanently deletes your account, your bookmarks, read
+    states, tags and connected browsers. The extension stops syncing. This can't be undone." +
+    outlined `deadFg` **Delete account…**, which opens a dialog (`SettingsAccountDelete`):
+    bin icon on `deadBg`, "Delete your account?", what will be deleted with real counts, a
+    "Download my data" link, "Type DELETE to confirm" input, **Delete everything** (`deadFg` fill,
+    `onDead` text: white light / `#1F1C1A` dark; disabled until DELETE is typed) + Cancel.
 
 ## Extension popup
 360 px wide, grows with its content. 64 px dark-texture header strip with the small logo + white
@@ -303,8 +318,8 @@ and "Manage connected browsers in Settings" at the bottom. Status card per state
 Dark mode: Settings and the popup use the dark tokens; the dark texture is the same in both themes.
 
 ## Later (owner's backlog, don't design until they say so)
-- **Logo animation**: animate the top-left logo while searching, summarising or checking the
-  Wayback Machine. Style not decided yet.
+- **Logo animations** (next up): animate the top-left masthead BB while the app works, with a
+  **different animation for each action** (searching, summarising, checking the Wayback Machine).
 
 ## Rules
 - Real `<button>`, `<a href>`, `<label>`; `aria-label` on icon buttons; visible focus; touch targets

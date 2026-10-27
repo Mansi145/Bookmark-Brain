@@ -3,9 +3,8 @@ import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
 import type { BookmarkPage, FacetCount, Facets, FeedSection, ReadState } from '../api/types'
-import BookmarkCard from '../components/BookmarkCard'
 import BookmarkDetail from '../components/BookmarkDetail'
-import Newspaper from '../components/Newspaper'
+import Newspaper, { FrontPageLoading, SectionSheet } from '../components/Newspaper'
 import { groupBySaveDate } from '../lib/editions'
 
 // main: the feed. sign_in: "Needs sign-in" (an account or subscription). dead: "Dead links"
@@ -83,7 +82,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
     <div className="mx-auto flex max-w-[1280px] flex-wrap items-start gap-8 px-6 pt-8 pb-16">
       <aside
         aria-label="Filters"
-        className="flex max-w-[260px] flex-[1_1_220px] flex-col gap-7 rounded-2xl bg-panel px-3.5 py-[18px]"
+        className="flex flex-[1_1_220px] flex-col gap-7 rounded-2xl bg-panel px-3.5 py-[18px] wide:max-w-[260px]"
       >
         <FilterList
           title="Browsers"
@@ -104,7 +103,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
         />
       </aside>
 
-      <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-6">
+      <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-3.5 wide:p-6">
         <div className="mb-[22px]">
           <h1 className="font-serif text-[40px] leading-[1.1] font-bold tracking-[-0.015em]">{TITLES[section]}</h1>
           {facets.data && (
@@ -131,39 +130,27 @@ export default function FeedPage({ section }: { section: FeedSection }) {
         {isEmpty && <EmptyState section={section} />}
         {feed.isError && <p className="text-dead-fg">Couldn't load bookmarks: {feed.error.message}</p>}
 
-        {/* The main feed is a newspaper (board NewsClassic); the two sections stay lists until
-            they're redesigned in that style. */}
-        {section === 'main' ? (
-          <Newspaper editions={groups} complete={!hasNextPage} view={readState} />
-        ) : (
-          <div className="flex flex-col gap-7">
-            {groups.map((group) => (
-              <section key={group.title} aria-label={group.title}>
-                <div className="bg-band flex items-baseline justify-between gap-3 rounded-xl px-[18px] py-[11px] text-on-accent">
-                  <h2 className="font-serif text-[19px] font-bold">{group.title}</h2>
-                  <span className="text-[13px] text-on-accent2">
-                    {group.items.length} {group.items.length === 1 ? 'bookmark' : 'bookmarks'}
-                  </span>
-                </div>
-                <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
-                  {group.items.map((b) => (
-                    <li key={b.id}>
-                      <BookmarkCard bookmark={b} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
+        {/* Everything is a newspaper (board Main): the feed as editions, the two sections as one
+            sheet each. */}
+        {section === 'main' && feed.isPending && !isFirstRun && <FrontPageLoading />}
+        {section === 'main' && <Newspaper editions={groups} complete={!hasNextPage} view={readState} />}
+        {section !== 'main' && bookmarks.length > 0 && (
+          <SectionSheet {...SHEETS[section]} count={facets.data?.total ?? bookmarks.length} items={bookmarks} />
         )}
 
         <div ref={sentinel} className="py-7 text-center text-sm text-ink2">
-          {(feed.isPending || isFetchingNextPage) && 'Loading more…'}
+          {((section !== 'main' && feed.isPending) || isFetchingNextPage) && 'Loading more…'}
         </div>
       </main>
       {openId && <BookmarkDetail key={openId} id={openId} onClose={closeDetail} />}
     </div>
   )
+}
+
+// The two section sheets' mastheads (boards FeedSignIn / FeedDead).
+const SHEETS = {
+  sign_in: { title: 'Needs sign-in', line: 'Pages behind an account or a subscription' },
+  dead: { title: 'Dead links', line: 'Pages that no longer load on the web' },
 }
 
 /** Counts for one section. Shared by the page and the views bar (same cache key). */
@@ -317,7 +304,7 @@ function FirstRun() {
       </span>
       <h2 className="mt-1.5 font-serif text-[28px] font-bold">Connect your first browser</h2>
       <p className="max-w-[460px] text-ink2">
-        Your bookmarks will show up here as a reading list. It takes about a minute.
+        Your bookmarks will show up here as your own front page. It takes about a minute.
       </p>
       <ol className="mt-3 flex list-none flex-col gap-2.5 p-0 text-left">
         <FirstRunStep n={1}>Add the Bookmark Brain extension to Chrome, Edge, Brave or Firefox.</FirstRunStep>

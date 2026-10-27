@@ -1,18 +1,13 @@
+import type { To } from 'react-router'
 import type { Bookmark } from '../api/types'
 import { useSummarise } from '../hooks/useSummarise'
-import { ProgressPill, RowButton } from './RowButton'
+import { ProgressPill, RowButton, RowLink } from './RowButton'
 
-// The summary area of a row (design board RowStates, "Summarise" group). Summaries are made
-// on demand: idle → Summarise button; working → "Summarising…" pill; done → the 2-line
-// summary; failed → "Couldn't summarise this page." + Try again. At the daily limit there's
-// no inline text (board "Story states"): pressing Summarise opens the Limit reached dialog.
-
-/** The AI summary, or the site's own description; both look the same (owner's decision). */
-export function SummaryText({ bookmark }: { bookmark: Bookmark }) {
-  const text = bookmark.summary ?? bookmark.description
-  if (!text) return null
-  return <p className="m-0 line-clamp-2 max-w-[760px] text-sm text-ink2">{text}</p>
-}
+// A story's Summarise button and its states (design board Story states, "Summarise" sheet).
+// Summaries are made on demand: idle → Summarise button; working → "Summarising…" pill and a
+// pulsing bar; done → the story shows the summary; failed → "Couldn't summarise this page." +
+// Try again. At the daily limit there's no inline text: pressing Summarise opens the Limit
+// reached dialog.
 
 /**
  * `compact`: the smaller button on the newspaper's briefs. `onStarted` runs once the server has
@@ -44,6 +39,15 @@ export function SummariseAction(props: { bookmark: Bookmark; compact?: boolean; 
         Summarise
       </RowButton>
     </div>
+  )
+}
+
+/** A brief that has a summary: it doesn't show it, so this opens the detail panel (owner). */
+export function OpenSummary({ to }: { to: To }) {
+  return (
+    <RowLink to={to} icon={LINES} compact>
+      Open summary
+    </RowLink>
   )
 }
 

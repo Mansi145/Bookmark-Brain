@@ -112,3 +112,29 @@ async def test_a_failed_send_can_be_tried_again(client, resend, monkeypatch):
 
 def test_needs_sign_in(anon_client):
     assert notify(anon_client).status_code == 401
+
+
+def test_dev_tools_are_off_unless_switched_on(client, monkeypatch):
+    # Set here, not taken from backend/.env, where a developer may have switched them on.
+    monkeypatch.setattr(get_settings(), "dev_tools", False)
+    assert client.post("/api/usage/dev/use-up").status_code == 404
+    assert client.post("/api/usage/dev/reset").status_code == 404
+
+
+async def test_dev_tools_use_up_and_reset_the_limit(client, resend, monkeypatch):
+    monkeypatch.setattr(get_settings(), "dev_tools", True)
+    sync(client, CHROME, [item("1", HOST + "/a")], full=True)
+    bookmark = feed(client)["items"][0]["id"]
+
+    assert client.post("/api/usage/dev/use-up").status_code == 204
+    assert summarise(client, bookmark).status_code == 429
+    assert notify(client).status_code == 204
+    assert len(resend.sent) == 1
+
+    # A fresh day: summaries allowed again, and the maintainer can be told again.
+    assert client.post("/api/usage/dev/reset").status_code == 204
+    assert client.get("/api/usage").json()["summaries_used"] == 0
+    assert client.post("/api/usage/dev/use-up").status_code == 204
+    assert summarise(client, bookmark).status_code == 429
+    assert notify(client).status_code == 204
+    assert len(resend.sent) == 2

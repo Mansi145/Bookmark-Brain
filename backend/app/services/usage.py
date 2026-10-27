@@ -9,7 +9,7 @@ maintainer about it (the Limit reached dialog), so the owner can see who runs ou
 
 from datetime import UTC, date, datetime, time, timedelta
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -90,6 +90,24 @@ async def claim_notice(session: AsyncSession, user_id: int) -> datetime | None:
         .returning(func.coalesce(AiUsage.limit_reached_at, func.now()))
     )
     return await session.scalar(statement)
+
+
+async def set_used_up(session: AsyncSession, user_id: int) -> None:
+    """Dev tools: count today as fully used, as if the user had made every summary."""
+    limit = get_settings().ai_daily_limit_per_user
+    statement = (
+        insert(AiUsage)
+        .values(user_id=user_id, day=today(), summaries=limit)
+        .on_conflict_do_update(
+            index_elements=[AiUsage.user_id, AiUsage.day], set_={"summaries": limit}
+        )
+    )
+    await session.execute(statement)
+
+
+async def forget_today(session: AsyncSession, user_id: int) -> None:
+    """Dev tools: wipe today's count, refusal time and maintainer email, like a new day."""
+    await session.execute(delete(AiUsage).where(AiUsage.user_id == user_id, AiUsage.day == today()))
 
 
 async def release_notice(session: AsyncSession, user_id: int) -> None:

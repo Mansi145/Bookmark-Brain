@@ -65,3 +65,29 @@ async def notify_maintainer(user: CurrentUser, session: SessionDep):
         await usage.release_notice(session, user.id)
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't send the email") from None
+
+
+# Local testing only (DEV_TOOLS=true): the "Dev tools" box in the dev build uses these to try
+# the Limit reached dialog without making 50 real summaries. 404 when switched off, so in
+# production they don't exist.
+
+
+def _require_dev_tools() -> None:
+    if not get_settings().dev_tools:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
+
+
+@router.post("/dev/use-up", status_code=status.HTTP_204_NO_CONTENT)
+async def dev_use_up(user: CurrentUser, session: SessionDep):
+    """Count today's AI allowance as used up, so the next Summarise is refused."""
+    _require_dev_tools()
+    await usage.set_used_up(session, user.id)
+    await session.commit()
+
+
+@router.post("/dev/reset", status_code=status.HTTP_204_NO_CONTENT)
+async def dev_reset(user: CurrentUser, session: SessionDep):
+    """Start today again: allowance back, and the maintainer email can be sent again."""
+    _require_dev_tools()
+    await usage.forget_today(session, user.id)
+    await session.commit()

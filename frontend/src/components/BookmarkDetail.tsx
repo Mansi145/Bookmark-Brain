@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router'
 import { api } from '../api/client'
 import type { Bookmark } from '../api/types'
 import { useSummarise } from '../hooks/useSummarise'
 import { age, capitalize } from '../lib/format'
-import { LEAVE_MS, updateCachedBookmark } from '../lib/cache'
+import { keptInPlace, LEAVE_MS, updateCachedBookmark } from '../lib/cache'
 import { canSummarise } from '../lib/summaries'
 import FreePlanNote from './FreePlanNote'
 import SiteIcon from './SiteIcon'
@@ -153,12 +154,16 @@ function Details({ bookmark }: { bookmark: Bookmark }) {
 
 function Actions({ bookmark }: { bookmark: Bookmark }) {
   const queryClient = useQueryClient()
+  // No ?state= means the All bookmarks view (or a section, where order doesn't change).
+  const [params] = useSearchParams()
+  const allBookmarks = !params.get('state')
   const read = bookmark.read_state === 'read'
   const markRead = useMutation({
     mutationFn: () => api.patch<Bookmark>(`/api/bookmarks/${bookmark.id}`, { read_state: read ? 'unread' : 'read' }),
     // Show it at once: in the Unread (or Read) view the story fades out, then the feed and
     // the Unread / Read counts refresh and it moves to the other view.
     onSuccess: (updated) => {
+      if (allBookmarks && updated.read_state === 'read') keptInPlace.add(updated.id)
       updateCachedBookmark(queryClient, updated)
       window.setTimeout(() => {
         void queryClient.invalidateQueries({ queryKey: ['bookmarks'] })

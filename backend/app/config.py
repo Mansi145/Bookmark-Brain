@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     maintainer_email: str = ""
     email_from: str = "Bookmark Brain <onboarding@resend.dev>"
 
+    # Local testing only: turns on /api/usage/dev/* (use up or reset today's AI limit, for
+    # trying the Limit reached dialog). Never set it in production.
+    dev_tools: bool = False
+
     # Phase 7: cron endpoints.
     internal_cron_secret: str = ""
 

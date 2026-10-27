@@ -81,6 +81,7 @@ token* in the popup. Details in the `extension` skill.
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT` | agent/chain traces |
 | `AI_DAILY_LIMIT_PER_USER` | quota guard |
 | `RESEND_API_KEY`, `MAINTAINER_EMAIL`, `EMAIL_FROM` | "Notify the maintainer" emails (Resend, free plan); optional, the button answers 503 without them. Without a verified domain `MAINTAINER_EMAIL` must be your Resend sign-up address |
+| `DEV_TOOLS` | local only: `true` enables `/api/usage/dev/use-up` and `/dev/reset` for the dev build's "Dev tools" box (try the Limit reached dialog without 50 real summaries). The box only exists in `npm run dev` |
 | `INTERNAL_CRON_SECRET` | protects `/internal/*` endpoints (Phase 7) |
 
 Never print `.env` values; check whether a var is set with e.g.

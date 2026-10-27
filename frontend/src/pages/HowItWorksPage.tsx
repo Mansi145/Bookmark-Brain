@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router'
 import Nebula from '../components/Nebula'
 import PublicHeader from '../components/PublicHeader'
 import SignInButtons from '../components/SignInButtons'
+import MiniFrontPage from '../components/MiniFrontPage'
 import SiteIcon from '../components/SiteIcon'
 import { useMe } from '../hooks/useMe'
 
@@ -10,7 +11,12 @@ import { useMe } from '../hooks/useMe'
 // a closing call to action on the texture, footer.
 
 const STEPS = [
-  { n: '1', tint: 'bg-accent', title: 'Sign in', body: 'Use your Google or GitHub account. No new password to remember.' },
+  {
+    n: '1',
+    tint: 'bg-accent',
+    title: 'Sign in',
+    body: 'Use your Google or GitHub account. No new password to remember.',
+  },
   {
     n: '2',
     tint: 'bg-accent',
@@ -21,14 +27,26 @@ const STEPS = [
     n: '3',
     tint: 'bg-accent',
     title: 'Read, search and ask',
-    body: 'Your bookmarks show up as a feed with summaries. Search them, or ask questions across all of them.',
+    body: 'Your bookmarks show up as your own front page. Summarise any of them, search them, or ask questions across all of them.',
   },
 ]
 
 const EXTRAS = [
-  { tint: 'bg-accent', title: 'Dead link checks', body: 'Spots pages that have gone missing and points you to an archived copy.' },
-  { tint: 'bg-accent2', title: 'Reading status', body: 'Mark things as read, and see how long each one takes to read.' },
-  { tint: 'bg-accent', title: 'Weekly digest', body: 'A short weekly round-up of things you saved and never got back to.' },
+  {
+    tint: 'bg-accent',
+    title: 'Dead link checks',
+    body: 'Spots pages that have gone missing, and looks for an archived copy when you ask.',
+  },
+  {
+    tint: 'bg-accent2',
+    title: 'Reading status',
+    body: 'Mark things as read, and see how long each one takes to read.',
+  },
+  {
+    tint: 'bg-accent',
+    title: 'Weekly digest',
+    body: 'A short weekly round-up of things you saved and never got back to.',
+  },
 ]
 
 export default function HowItWorksPage() {
@@ -47,7 +65,10 @@ export default function HowItWorksPage() {
         <Nebula variant="nude" size="band" />
         <PublicHeader />
         <div className="relative mx-auto max-w-[1200px] px-6 pt-10 pb-16">
-          <h1 id="how-title" className="font-serif text-[40px] leading-[1.05] font-bold tracking-[-0.02em] sm:text-[56px]">
+          <h1
+            id="how-title"
+            className="font-serif text-[40px] leading-[1.05] font-bold tracking-[-0.02em] sm:text-[56px]"
+          >
             How it works
           </h1>
           <p className="mt-3.5 max-w-[560px] text-[19px] text-on-texture2">
@@ -60,7 +81,10 @@ export default function HowItWorksPage() {
         <ol className="grid list-none grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-5 p-0">
           {STEPS.map((s) => (
             <li key={s.n} className="rounded-2xl border border-[#E2DFDA] bg-[#FBFAF8] p-6">
-              <span aria-hidden className={`grid size-9 place-items-center rounded-full font-semibold text-on-accent ${s.tint}`}>
+              <span
+                aria-hidden
+                className={`grid size-9 place-items-center rounded-full font-semibold text-on-accent ${s.tint}`}
+              >
                 {s.n}
               </span>
               <h2 className="mt-4 text-lg font-semibold">{s.title}</h2>
@@ -75,7 +99,19 @@ export default function HowItWorksPage() {
           What it does with your bookmarks
         </h2>
 
-        <Feature title="Summaries you can skim" body="Every saved page gets a short summary and its key points, so you remember why you saved it before you open it.">
+        <Feature
+          first
+          box="p-5"
+          title="Your own front page"
+          body="Your bookmarks are laid out like a newspaper. The newest things you haven't read get the most space, older ones get smaller, and what you've read moves to the back."
+        >
+          <MiniFrontPage />
+        </Feature>
+
+        <Feature
+          title="Summaries you can skim"
+          body="Click Summarise on any saved page for a short summary and its key points, so you remember why you saved it before you open it."
+        >
           <div className="mb-1.5 flex items-center gap-2 text-[13px] text-[#2F3134]">
             <SiteIcon iconUrl="/sample-icons/webdev.png" site="web.dev" light />
             web.dev · 5 min read
@@ -145,10 +181,16 @@ export default function HowItWorksPage() {
         </ul>
       </section>
 
-      <section aria-labelledby="cta-title" className="relative mx-6 mt-[72px] overflow-hidden rounded-[28px] text-on-texture">
+      <section
+        aria-labelledby="cta-title"
+        className="relative mx-6 mt-[72px] overflow-hidden rounded-[28px] text-on-texture"
+      >
         <Nebula variant="nude" size="band" />
         <div className="relative mx-auto max-w-[760px] px-6 py-[72px] text-center">
-          <h2 id="cta-title" className="font-serif text-[32px] leading-[1.1] font-bold tracking-[-0.015em] sm:text-[44px]">
+          <h2
+            id="cta-title"
+            className="font-serif text-[32px] leading-[1.1] font-bold tracking-[-0.015em] sm:text-[44px]"
+          >
             Your saved links are waiting.
           </h2>
           <p className="mt-3 text-lg text-on-texture2">
@@ -175,14 +217,27 @@ export default function HowItWorksPage() {
   )
 }
 
-function Feature(props: { title: string; body: string; reverse?: boolean; children: React.ReactNode }) {
+/** `first` sits closer to the section title; `box` overrides the example card's padding. */
+function Feature(props: {
+  title: string
+  body: string
+  reverse?: boolean
+  first?: boolean
+  box?: string
+  children: React.ReactNode
+}) {
   return (
-    <div className={`mt-14 flex flex-wrap items-center gap-10 ${props.reverse ? 'flex-wrap-reverse flex-row-reverse' : ''}`}>
+    <div
+      className={`flex flex-wrap items-center gap-10 ${props.first ? 'mt-10' : 'mt-14'} ${props.reverse ? 'flex-row-reverse flex-wrap-reverse' : ''}`}
+    >
       <div className="flex-[1_1_360px]">
         <h3 className="font-serif text-[28px] font-bold">{props.title}</h3>
         <p className="mt-2.5 max-w-[460px] text-[#2F3134]">{props.body}</p>
       </div>
-      <div aria-hidden className="flex-[1_1_420px] rounded-[18px] border border-[#E2DFDA] bg-[#FBFAF8] p-6">
+      <div
+        aria-hidden
+        className={`flex-[1_1_420px] rounded-[18px] border border-[#E2DFDA] bg-[#FBFAF8] ${props.box ?? 'p-6'}`}
+      >
         {props.children}
       </div>
     </div>
