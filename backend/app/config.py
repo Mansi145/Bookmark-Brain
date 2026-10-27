@@ -27,11 +27,27 @@ class Settings(BaseSettings):
     # Background job worker (app/worker.py). Tests turn it off and run jobs by hand.
     worker_enabled: bool = True
 
-    # Filled in from later phases.
+    # AI (app/ai/llm.py). Gemini is primary, Groq takes over when Gemini fails or is out of
+    # quota. Model names live here so switching model is a config change, not a code change.
+    # The fallback chain, in order: Gemini, a second Gemini model (its own free quota, same
+    # key), OpenRouter's free models, NVIDIA NIM (hosts DeepSeek for free), then Groq. A
+    # provider without a key is skipped. Free model line-ups change often: check them with
+    # the commands in the llm-patterns skill.
     google_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_fallback_model: str = "gemini-2.5-flash"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "nvidia/nemotron-3.5-super-vl:free"
+    nvidia_api_key: str = ""
+    nvidia_model: str = "deepseek-ai/deepseek-v4.1-flash"
     groq_api_key: str = ""
-    internal_cron_secret: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+    # Summaries a user may start per UTC day. The free quotas are per API key, so all users
+    # share them; this stops one person from using up the day.
     ai_daily_limit_per_user: int = 50
+
+    # Phase 7: cron endpoints.
+    internal_cron_secret: str = ""
 
 
 @lru_cache

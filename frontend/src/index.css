@@ -32,6 +32,15 @@
 
   /* Progress bar with no known end (first sync, server waking up): a segment sliding across. */
   --animate-slide: slide 1.6s ease-in-out infinite;
+  /* A story leaving the current view (just marked read in Unread, or unread in Read): it
+     fades and folds up (design board MarkAsRead, ~250 ms). */
+  --animate-leave: leave 250ms ease-in forwards;
+  @keyframes leave {
+    to {
+      opacity: 0;
+      transform: scaleY(0.92);
+    }
+  }
   /* The Connect page's browser-to-app line: dashes flowing towards our logo. */
   --animate-flow: flow 0.8s linear infinite;
   @keyframes flow {

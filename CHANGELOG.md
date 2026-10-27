@@ -5,6 +5,62 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### AI summaries, the bookmark detail panel and the newspaper feed
+
+#### Added
+- **Newspaper feed** (design board NewsClassic): the main feed is now a classic front page.
+  - **Editions:** Today, This week and Earlier are editions, each one sheet with a masthead (band rule, Aleo title between the date and the counts, double rule) and thin column rules instead of a card per story.
+  - **Story sizes:** newest unread stories are biggest (lead → seconds → standards → briefs), and read ones go last, faded. The first edition gets the front-page layout; Earlier is all briefs.
+  - **Summary length per size:** a lead shows its whole summary, a second 5 lines, a standard 3, and a brief none. A story without a summary shows its Summarise button.
+  - **Columns:** one on phones, two on small screens, the full grid on wide ones.
+  - **Other sections:** Needs sign-in and Dead links keep the list until they're redesigned.
+- **Preview image on the top story only** (`services/preview.py`): `og:image` / `twitter:image` from the page's `<head>`, stored as `documents.image_url` while the page is fetched. The browser loads it from the site, so our server never downloads images; if it fails, the lead is text-only. Captioned "Image from <site>". Migration `0007` adds the column and queues a new `find_image` job for pages fetched before, which reads the page again but only stores the image (text, section and summary untouched).
+- **`app/ai/llm.py`**, the one place that talks to models, chaining free providers with LangChain's `.with_fallbacks()`:
+  - Gemini `gemini-3.5-flash-lite`
+  - Gemini `gemini-2.5-flash`, with its own free quota on the same key
+  - OpenRouter's free `nvidia/nemotron-3.5-super-vl:free`
+  - NVIDIA NIM, which hosts DeepSeek (`deepseek-ai/deepseek-v4.1-flash`) for free
+  - Groq `openai/gpt-oss-120b`
+
+  Providers without a key (`OPENROUTER_API_KEY`, `NVIDIA_API_KEY`) are skipped. An answer that doesn't fit the schema also moves on to the next model. `get_structured_model(Schema)` returns typed answers instead of text to parse, and reports which model answered. Model names are settings (`GEMINI_MODEL`, `GROQ_MODEL`); each client retries once and times out after 45 s, so the fallback kicks in fast.
+- **Summarise chain** (`app/ai/chains.py`, prompt in `app/ai/prompts/summarise.md`): a short paragraph (5–6 sentences, about 800 characters) plus 3–5 key points. The page goes in `<article>` tags and the prompt treats it as data, not instructions (bookmarked pages are untrusted). Input is capped at 12,000 characters; answers that are empty, unparseable or far too long are rejected.
+- **`summarise` job**: uses the page's text, a Wayback copy's text for a dead link, or only the title and description. It waits up to 2 minutes for a page that's still being fetched, retries a model failure once, then shows "Couldn't summarise this page." Records `summary_source` and `summary_model` (stored, never shown).
+- **`POST /api/bookmarks/{id}/summarise`** (`?again=true` for Re-summarise). Summaries are cached per URL, so one someone already made comes back at once and costs nothing. Otherwise it counts towards the per-user daily limit (`AI_DAILY_LIMIT_PER_USER`, default 50; 429 "Daily summary limit reached"), checked and counted in a single SQL statement so two quick clicks can't both slip under it. Dead links need an archived copy first (409).
+- **`GET /api/usage`**: today's summaries used, the limit, and when it resets (midnight UTC).
+- **`PATCH /api/bookmarks/{id}`** (`read_state`) and **`GET /api/bookmarks/{id}`** for the detail panel. `BookmarkOut` gains `description`, `summary`, `key_points` and `summary_status`.
+- **Migration `0006`**: `documents.summary`, `key_points`, `summary_status`, `summary_source`, `summary_model`, `summarised_at`, and the `ai_usage` table.
+- **Feed rows**:
+  - the summary, or the site's own description, in two lines
+  - a Summarise button with Summarising… / failed + Try again / daily-limit states
+  - on dead links, Summarise appears once an archived copy is found
+  - the feed keeps refreshing while a summary is being made
+- **Bookmark detail panel**: clicking a row's title opens a 480 px panel (full screen on phones) over a dark backdrop. It's part of the address (`?bookmark=`), so Back closes it. It shows:
+  - the site, title and when it was saved
+  - Open page, Mark as read / unread, and Re-summarise
+  - the summary and key points; before a summary, the site's description, a line saying so, and the Summarise button
+  - where the bookmark is saved, and the full URL
+
+  Escape or the backdrop closes it.
+- **Mark as read / unread**: in the Unread view the story fades and folds out (about 250 ms; at once with reduced motion) and appears under Read, where *Mark as unread* moves it back the same way. The cached feed updates straight away, then refreshes with the new counts. Opening a bookmark never marks it read.
+- **Tests**: with a fake model, so nothing reaches Gemini or Groq. They cover:
+  - summarising page text, with the prompt framing checked
+  - shared summaries being free for other users
+  - Re-summarise, and the daily limit
+  - the title-and-description fallback
+  - dead links needing a copy
+  - retry-then-fail and rejected answers
+  - the input budget, mark read / unread, and getting one bookmark
+
+#### Decided
+- **Model choice:** `gemini-3.5-flash-lite` became the main model after a live comparison. `gemini-3.5-flash` returned 503 "high demand" on 3 of 4 calls, while the lite model and `gemini-2.5-flash` answered every time. A two-sentence summary doesn't need the bigger model, and lite models usually get the largest free quota.
+- **More free models, and DeepSeek:** DeepSeek's own API has no free tier (pay-as-you-go), and no free DeepSeek is listed on OpenRouter. NVIDIA NIM hosts it for free, so it joins the chain there. Mistral's free tier was left out because it requires opting into training on your data.
+- **Preview images are back, for one spot only:** the owner reversed the no-`og:image` rule for the newspaper's lead story. Everywhere else stays image-free apart from site logos.
+- **Summary length:** a short paragraph instead of two sentences (owner: the summary looked too short). Feed rows still show two lines; the detail panel shows it all.
+- **Input size:** article input is 12,000 characters, not 24,000. Groq's free tier allows only 8,000 tokens a minute, and a full-length page used about 6,300 of them.
+
+#### Notes
+- Not built yet: the detail panel's Tags (Phase 5), the free-plan note and the "Limit reached" dialog (need an email service), and trying Gemini's URL-reading tool for pages we couldn't fetch. Settings' "AI usage" section was dropped (owner: users shouldn't see AI usage).
+
 ### UI: first pass of the new design
 
 #### Added
@@ -30,6 +86,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Not built yet, all designed: the Summarise button and the bookmark detail panel (next step), search (Phase 3), the Ask page (Phase 4), tags (Phase 5), the Digest page (Phase 7), sorting, the row "⋯" menu, and Settings' AI usage and Account sections. The Ask and Digest tabs join the top bar when their pages exist.
 
 ### Design (canvas)
+- Mark as read moves a story to Read with a Mark as unread button; logo direction chosen (Masthead BB), not rolled out yet.
+- Opening a bookmark no longer marks it read; detail panel 'not summarised yet' state; AI usage removed from Settings; newspaper summary lengths per story size; logo directions with a BB monogram (exploration).
+- Feed redesigned as a classic newspaper front page (editions, newest unread biggest, image on the top lead only); a free-plan note next to AI actions; a 'Limit reached' dialog that lets each user notify the maintainer. Not built yet.
 - Phase 2 feed design: three sections (Feed · Needs sign-in · Dead links) under a top bar on the dark texture with the tabs, a How it works link and the account menu; the new section is named "Dead links"; the "Archived" reading state was later removed (reading states are Unread and Read); archive.org is only looked up from a dead row's "Find archived copy" button; empty states; on-demand Summarise button with working / failed / daily-limit states; row states with icons; no source or trust labels anywhere (owner's decision); accents: the owner's rule is to use only the dark Nude colours (`#503931`, `#564D3A`) with white text, never light tints; every group band uses the gradient. Reading states and the two sections share one views bar above the list (not the sidebar or top nav; the top tabs are Feed · Ask · Settings); the sidebar has only Browsers and Folders; the How it works page and the landing preview card use the dark accents too. Boards: `Main` (with a `section` setting), `FeedSignIn`, `FeedDead`, `FeedSignInEmpty`, `FeedDeadEmpty`, `RowStates`, `FeedDark`.
 - The brand texture is now the dark version of Figma's Nude gradient (`#503931 → #564D3A`) with white text on it, replacing the light blue → pink Cloudlifter texture.
 - The landing page was split into a one-screen sign-up page and a separate How it works page.

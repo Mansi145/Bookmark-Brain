@@ -32,6 +32,8 @@ Statuses: `queued → running → done`, or `→ queued` (retry) `→ … → fa
 | Kind | Queued by | Does |
 |---|---|---|
 | `fetch_page` | `services/sync.py` for each new document; migration `0004` backfill | live page (safe fetcher) → `services/extract.py` (trafilatura) → `fetched`; private address → `failed`; needs sign-in (`services/access.py`) → `failed` + `access`, never sent to archive.org; 404/410 → `dead`; anything else → `failed`. Also stores the site logo (`services/icons.py`). Never contacts archive.org |
+| `summarise` | `POST /api/bookmarks/{id}/summarise` (Summarise / Re-summarise; counted against the daily limit unless a summary is cached) | waits (`RetryLater`, up to 2 min) while the page is still `pending`; then `ai/chains.py` with the page text, a Wayback copy's text, or the title and description → `summary_status` done (summary, key points, source, model) / failed. Model errors retry once (someone is watching), bad answers fail at once |
+| `find_image` | migration `0007`, once per page fetched before preview images were stored | reads the page again with the safe fetcher and stores only `image_url` (`services/preview.py`); text, section and summary are left alone; any failure just leaves no image |
 | `find_archive` | `POST /api/bookmarks/{id}/find-archive` (the user clicked "Find archived copy" on a dead link) | latest Wayback Machine snapshot via `services/archive.py` (throttled, private-looking URLs skipped) → `archive_status` found / none / failed (archive.org busy: reported, not retried, so the user can try again) |
 
 ## Adding a job kind

@@ -174,7 +174,14 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
 - **Bookmark detail** (`FeedDetail`; Main `detail`): a **480 px side panel** from the right over a
   35 % dark backdrop (full screen on phones), on `panel`. Close button; logo chip + site · folder ·
   browser; Aleo 30 px title; "Saved 2 days ago · 6 min read"; **Open page** (`ink`), Mark as read,
-  Re-summarise; a `surface` card with Summary + Key points; Tags (outlined pills with remove ×; AI
+  Re-summarise; a `surface` card with Summary + Key points. **Opening the panel never marks a
+  bookmark read** (owner): the button stays "Mark as read" until the user presses it. Pressing it
+  (`MarkAsRead` board): in the Unread view the story fades and folds out (~250 ms; instant with
+  reduced motion) and the button becomes **Mark as unread**; switching to Read shows it there, faded,
+  with Mark as unread, which moves it back the same way. A "Moved to Read · Undo" notice is only a
+  suggestion. Not
+  summarised yet (`FeedDetailUnsummarised`): the card shows the site's own description, a muted
+  "The site's own description…" line and the Summarise button, and there's no Re-summarise. Tags (outlined pills with remove ×; AI
   suggestions dashed with ✓ / ×; "Add tag"); Details (browsers/folders, full URL).
 - **Tags**: a "Tags" group in the feed sidebar with counts, and in the detail panel. Not on rows.
 - **Search results** (`FeedSearch`; Main `section="search"`): replace the feed in place. Query stays
@@ -216,13 +223,33 @@ Top nav is now **Feed · Ask · Digest · Settings** (Digest added as its own pa
     browser** (to Settings).
   - Under every Connect card, on the texture: a lock icon + "We only read your bookmarks' titles,
     links and folders, plus the public pages they point to."
+- **Free-plan note** (owner): next to AI actions only (under the Ask composer, under the detail
+  panel's Open page / Mark as read / Re-summarise), 13 px `muted` with an info icon: "Bookmark
+  Brain is a personal learning project on free plans. AI features share a small daily limit and
+  may stop early."
+- **Limit reached dialog** (`LimitDialog`, owner): opens when Summarise, Re-summarise or Ask is
+  refused because the daily AI allowance is used up. Modal `surface` card on a dimmed page: gauge
+  icon on `accent`, "Limit reached", why it happens + "comes back at midnight UTC", **Please click
+  below to notify the maintainer.**, **Notify the maintainer** (`ink`, emails the owner) + Close.
+  Then Sending… → "Thanks, the maintainer knows". **Per user** (owner wants the data): every
+  signed-in person can send it each time they hit the limit, no "already reported" state; the
+  email carries their account email and the time, and the dialog says so under the button.
+  Suggested, not yet approved: "couldn't send" (Try again).
+- **Newspaper feed: the owner chose the classic front page** (`NewsClassic`). It replaces the
+  date-grouped list: Today / This week / Earlier are editions, each one `surface` sheet with a
+  masthead (band rule, Aleo title centred between the date and counts, double rule under it) and
+  thin `line` column rules instead of a card per article. Newest unread stories are biggest (lead →
+  second → standard → brief; read ones last and faded); summaries (a 5–6 sentence
+  paragraph) show in full on the lead, 5 lines on second stories, 3 on standard, none on briefs; only the top lead shows the page's
+  preview image (16:9, caption "Image from <site>"; no image → a text-only lead). `NewsGrid` and
+  `NewsSections` were the other trials.
 - Connect also has three states the build added, on the board as 7–9 with their wording **waiting
   for the owner's review**: "Connected, but the first sync failed" (the extension's error + Go to
   your feed), "Something went wrong" (the token couldn't be made; Try again) and "Connect from the
   extension" (page opened without the extension's link; Connect by hand).
 
 ## Settings
-Same dark-texture top bar as the feed (Settings current). The section menu (Browsers, AI usage,
+Same dark-texture top bar as the feed (Settings current). The section menu (Browsers,
 Account; selected on `accent`, white text, weight 600) sits on a `panel`; the main column is another
 `panel` with page title "Settings" (Aleo 40 px) and each section as a bordered `surface` card,
 radius 12 px, Aleo 21 px headings:
@@ -234,7 +261,8 @@ radius 12 px, Aleo 21 px headings:
   ("Chrome extension"), `bb_pat_…` prefix + bookmark count + last sync, a status pill (`accent2` with
   white text when syncing/connected; outlined with `ink` text when waiting) and a **Revoke** text
   button in `deadFg`.
-- **AI usage today**: explanation line, "[used] of [limit]", progress bar `band` on `skeleton`.
+- **No AI usage section** (owner): users aren't shown AI usage at all. The only hint is the
+  free-plan note and, when it happens, the Limit reached dialog.
 
 ## Extension popup
 360 px wide, grows with its content. 64 px dark-texture header strip with the small logo + white
@@ -249,6 +277,13 @@ and "Manage connected browsers in Settings" at the bottom. Status card per state
 | Token rejected | `deadBg`, `deadFg` text | alert circle | Reconnect |
 
 Dark mode: Settings and the popup use the dark tokens; the dark texture is the same in both themes.
+
+## Logo direction (owner, 2026-10-27)
+The owner chose **"Masthead BB"** from `LogoDirections` (direction 9): a backwards Aleo bold B and a
+B mirrored around one spine, between newspaper rules (thick `accent` rule + thin `ink` rule above and
+below) on a cream `#F4EDE4` tile. It matches the newspaper feed. Not yet rolled out: the boards and
+the build still use the brain logo until the owner approves a finished version (lettering turned into
+outlines, a small-size version, lockup with the wordmark).
 
 ## Later (owner's backlog, don't design until they say so)
 - **Logo colour**: pick a fill and outline (near-black vs cream) from `LogoVariants.dc.html`; the

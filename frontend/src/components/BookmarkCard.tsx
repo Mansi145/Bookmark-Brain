@@ -1,20 +1,28 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
 import type { Bookmark } from '../api/types'
+import { age, capitalize, formatDate } from '../lib/format'
+import { canSummarise } from '../lib/summaries'
+import { Icon, ProgressPill, RowButton } from './RowButton'
 import SiteIcon from './SiteIcon'
+import { SummariseAction, SummaryText } from './Summarise'
 
-// One row of the reading list (design board Main.dc.html): meta line, Aleo title, then the
-// page's state, with the reading time on the right. No images (owner's decision).
+// One row of the reading list (design board Main.dc.html): meta line, Aleo title (opens the
+// detail panel), the page's state, the summary or Summarise, and the reading time on the
+// right. No images and no source/trust labels (owner's decisions).
 //
-// Not here yet: the Summarise button and summaries (next Phase 2 step) and the "⋯" row menu.
-// No source/trust labels: the owner decided every summary and description looks the same.
-
-const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+// Not here yet: the row "⋯" menu.
 
 export default function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
+  const [params] = useSearchParams()
   const folders = [...new Set(bookmark.sources.map((s) => s.folder_path).filter(Boolean))]
   const browsers = [...new Set(bookmark.sources.map((s) => s.browser))]
   const meta = [bookmark.site, folders.join(', '), browsers.map(capitalize).join(', '), age(bookmark.added_at)]
+
+  // The detail panel is part of the address (?bookmark=), so Back closes it.
+  const detail = new URLSearchParams(params)
+  detail.set('bookmark', String(bookmark.id))
 
   return (
     <article
@@ -31,16 +39,16 @@ export default function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
           ))}
         </div>
 
-        <a
-          href={bookmark.url}
-          target="_blank"
-          rel="noreferrer"
+        <Link
+          to={{ search: detail.toString() }}
           className="font-serif text-[21px] leading-[1.25] font-bold text-ink no-underline hover:underline"
         >
           {bookmark.title}
-        </a>
+        </Link>
 
         <PageState bookmark={bookmark} />
+        <SummaryText bookmark={bookmark} />
+        {canSummarise(bookmark) && <SummariseAction bookmark={bookmark} />}
       </div>
 
       <div className="flex flex-none flex-col items-end justify-end">
@@ -54,19 +62,7 @@ export default function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
 
 // One 14 px line under the title with a small stroke icon (design board RowStates.dc.html).
 function PageState({ bookmark }: { bookmark: Bookmark }) {
-  if (bookmark.status === 'pending') {
-    return (
-      <div className="flex items-center gap-3">
-        <span className="flex items-center gap-1.5 rounded-full bg-accent2 px-2.5 py-[3px] text-[13px] font-medium whitespace-nowrap text-on-accent">
-          <Icon className="animate-spin">
-            <path d="M12 3a9 9 0 1 0 9 9" />
-          </Icon>
-          Fetching page…
-        </span>
-        <span aria-hidden className="h-2.5 max-w-[420px] flex-1 rounded bg-skeleton" />
-      </div>
-    )
-  }
+  if (bookmark.status === 'pending') return <ProgressPill>Fetching page…</ProgressPill>
 
   if (bookmark.status === 'dead') return <DeadLink bookmark={bookmark} />
 
@@ -87,6 +83,7 @@ function PageState({ bookmark }: { bookmark: Bookmark }) {
 /**
  * Dead links (RowStates board, "Dead links" group). The Wayback Machine is only asked when the
  * user clicks "Find archived copy": never → checking → found (link appended) / none / failed.
+ * Once a copy is found, the row's Summarise button summarises that copy.
  */
 function DeadLink({ bookmark }: { bookmark: Bookmark }) {
   const queryClient = useQueryClient()
@@ -115,14 +112,7 @@ function DeadLink({ bookmark }: { bookmark: Bookmark }) {
           Find archived copy
         </RowButton>
       )}
-      {state === 'checking' && (
-        <span className="flex items-center gap-1.5 rounded-full bg-accent2 px-2.5 py-[3px] text-[13px] font-medium text-on-accent">
-          <Icon className="animate-spin">
-            <path d="M12 3a9 9 0 1 0 9 9" />
-          </Icon>
-          Checking the Wayback Machine…
-        </span>
-      )}
+      {state === 'checking' && <ProgressPill bar={false}>Checking the Wayback Machine…</ProgressPill>}
       {state === 'none' && <p className="m-0 text-sm text-ink2">No archived copy on the Wayback Machine.</p>}
       {(state === 'failed' || lookUp.isError) && (
         <div className="flex flex-wrap items-center gap-3">
@@ -131,20 +121,6 @@ function DeadLink({ bookmark }: { bookmark: Bookmark }) {
         </div>
       )}
     </div>
-  )
-}
-
-/** The 36 px outlined row action (Summarise, Find archived copy, Try again). */
-function RowButton(props: { icon?: React.ReactNode; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={props.onClick}
-      className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink hover:bg-skeleton"
-    >
-      {props.icon && <Icon>{props.icon}</Icon>}
-      {props.children}
-    </button>
   )
 }
 
@@ -170,16 +146,8 @@ function ArchiveLink({ bookmark, inline = false }: { bookmark: Bookmark; inline?
       }
     >
       {!inline && <Icon>{BROKEN_LINK}</Icon>}
-      Archived copy{bookmark.archived_on && ` · ${dateFormat.format(new Date(bookmark.archived_on))}`}
+      Archived copy{bookmark.archived_on && ` · ${formatDate(bookmark.archived_on)}`}
     </a>
-  )
-}
-
-function Icon({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={`flex-none ${className}`}>
-      {children}
-    </svg>
   )
 }
 
@@ -210,21 +178,3 @@ const BROKEN_LINK = (
     <path d="m3 3 18 18" />
   </>
 )
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-/** "just now", "5 min ago", "3 h ago", "2d ago", "3w ago", "4mo ago", then a date. */
-function age(iso: string) {
-  const minutes = (Date.now() - new Date(iso).getTime()) / 60_000
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${Math.floor(minutes)} min ago`
-  const hours = minutes / 60
-  if (hours < 24) return `${Math.floor(hours)} h ago`
-  const days = hours / 24
-  if (days < 7) return `${Math.floor(days)}d ago`
-  if (days < 30) return `${Math.floor(days / 7)}w ago`
-  if (days < 365) return `${Math.floor(days / 30)}mo ago`
-  return dateFormat.format(new Date(iso))
-}
