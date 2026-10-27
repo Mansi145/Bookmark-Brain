@@ -32,7 +32,7 @@ export function WakingUpPage() {
   if (!slow) return null
 
   return (
-    <StatePage icon={ICONS.moon} title="Waking up the server…">
+    <StatePage icon={ICONS.moon} title="Waking up the server…" logoMotion="rewind">
       <StateText>
         Bookmark Brain runs on a free server that sleeps when nobody is using it. This can take up to a minute.
       </StateText>

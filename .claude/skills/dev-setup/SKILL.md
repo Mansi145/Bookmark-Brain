@@ -42,7 +42,12 @@ cp .env.example .env.local       # VITE_API_URL, VITE_GOOGLE_CLIENT_ID
 npm install
 npm run dev                      # http://localhost:5173
 npx tsc -b && npm run lint       # type-check + oxlint
+npm run build                    # type-check + production build
 ```
+There's no Prettier config; the code has no semicolons, single quotes and 120-column lines. To
+format a file the same way: `npx prettier --no-semi --single-quote --print-width 120 --write <file>`.
+The dev build also shows a **Dev tools** box (bottom left, needs `DEV_TOOLS=true` on the backend)
+with *Use up today's limit* and *Reset*.
 Google sign-in needs `http://localhost:5173` in the OAuth client's *Authorised JavaScript origins*,
 and the **client ID** (ends in `.apps.googleusercontent.com`), not an API key, in both
 `VITE_GOOGLE_CLIENT_ID` and the backend's `GOOGLE_CLIENT_ID`.
@@ -63,8 +68,8 @@ After code changes, rebuild and click the reload icon on the extension card.
 Edge: same steps at `edge://extensions`. Firefox: `about:debugging` → Load Temporary Add-on → pick
 `.output/firefox-mv2/manifest.json`.
 
-Then click the extension's **Connect this browser**: it opens `/connect`, you click Connect, the page
-shows a loader and then your feed. Manual fallback: Settings → Create token, then *Advanced: paste a
+Then click the extension's **Connect this browser**: it opens `/connect`, which connects on its own,
+shows the first sync, then a summary with **Open your feed**. Manual fallback: Settings → Create token, then *Advanced: paste a
 token* in the popup. Details in the `extension` skill.
 
 ## Backend env vars (`backend/.env`)
@@ -77,9 +82,10 @@ token* in the popup. Details in the `extension` skill.
 | `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_SAMESITE` | prod only: `true` / `none` (cross-site) |
 | `WORKER_ENABLED` | run the in-process job worker (default `true`) |
 | `GOOGLE_API_KEY` | Gemini chat + embeddings (from AI Studio), Phase 2+ |
-| `GROQ_API_KEY` | fallback LLM, Phase 2+ |
+| `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `GROQ_API_KEY` | the rest of the summary fallback chain (OpenRouter's free models, NVIDIA NIM, Groq); each is optional, a provider without a key is skipped |
+| `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `GROQ_MODEL` | override the models (defaults in `app/config.py`; see the `llm-patterns` skill) |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT` | agent/chain traces |
-| `AI_DAILY_LIMIT_PER_USER` | quota guard |
+| `AI_DAILY_LIMIT_PER_USER` | summaries per user per UTC day (default 50) |
 | `RESEND_API_KEY`, `MAINTAINER_EMAIL`, `EMAIL_FROM` | "Notify the maintainer" emails (Resend, free plan); optional, the button answers 503 without them. Without a verified domain `MAINTAINER_EMAIL` must be your Resend sign-up address |
 | `DEV_TOOLS` | local only: `true` enables `/api/usage/dev/use-up` and `/dev/reset` for the dev build's "Dev tools" box (try the Limit reached dialog without 50 real summaries). The box only exists in `npm run dev` |
 | `INTERNAL_CRON_SECRET` | protects `/internal/*` endpoints (Phase 7) |

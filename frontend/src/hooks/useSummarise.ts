@@ -11,6 +11,8 @@ import { openLimitDialog } from '../lib/limit'
 export function useSummarise(bookmarkId: number) {
   const queryClient = useQueryClient()
   const mutation = useMutation({
+    // The top-bar logo plays Page back while any of these is on its way (useLogoMotion).
+    mutationKey: ['summarise'],
     mutationFn: (again: boolean = false) =>
       api.post<Bookmark>(`/api/bookmarks/${bookmarkId}/summarise${again ? '?again=true' : ''}`),
     onError: (error) => {

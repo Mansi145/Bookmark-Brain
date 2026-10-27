@@ -17,6 +17,9 @@ description: Deploying Bookmark Brain to Render (FastAPI), Neon (Postgres + pgve
 - Health check path: `/health` (must be cheap: no DB or LLM calls).
 - Env vars: everything in the `dev-setup` skill, with prod values; `FRONTEND_ORIGIN=https://<app>.vercel.app`,
   `SESSION_COOKIE_SECURE=true`, `SESSION_COOKIE_SAMESITE=none`, `WORKER_ENABLED=true`.
+  `RESEND_API_KEY` + `MAINTAINER_EMAIL` turn on the Limit reached email (without them the button
+  answers 503). The OpenRouter / NVIDIA / Groq keys are optional fallbacks. **Never set
+  `DEV_TOOLS`** in production: it lets any user reset their own daily AI limit.
 - Run migrations against Neon (direct URL) **before** deploying code that needs them.
 - **Keep warm**: cron-job.org → `GET https://<api>.onrender.com/health` every 10 min. The free plan's 750 h/month covers one service running 24/7. This also keeps the in-process job worker alive: it runs inside the API process, so if Render puts
   the service to sleep, queued jobs wait until the next request wakes it. Several instances would be

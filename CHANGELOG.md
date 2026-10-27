@@ -5,6 +5,47 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-27
+
+The first release, closing Phase 2. It holds everything built so far:
+- **Phase 0:** foundations.
+- **Phase 1:** Google sign-in, bookmark sync from the extension with one-click connect, and the feed.
+- **Phase 2:** the background job queue, page fetching with the Needs sign-in and Dead links sections, and AI summaries on demand from a chain of free models, with a daily limit and the Limit reached dialog.
+- **The final design:** the newspaper front page, the detail panel, the account menu, Settings → Account, warm charcoal dark mode, the Masthead BB logo and its animations.
+
+Search, the Ask agent, tags and the digest come in later phases.
+
+### Logo animations, a filled Delete account button and the docs
+
+#### Added
+- **The top-bar logo moves while the app works** (design board LogoAnimations, owner), with CSS keyframes on parts of the logo's SVG:
+  - **Page back** while a summary is being made: a brown copy of the right B turns over the spine to the left and disappears, every 2 s. It starts on the click and runs until the summary is ready. A summary that was already made still shows one turn.
+  - **Rewind** while a page loads (the first feed load, another Earlier page) and on the "Waking up the server…" page: the whole logo turns once anticlockwise, then rests.
+  - **Hourglass** while we look for an archived copy: a small brown badge in the logo's corner with a white hourglass that keeps turning over.
+- **One movement at a time:** Hourglass, then Page back, then Rewind. Once the work is done the logo finishes its current cycle, so it never stops halfway through a turn.
+- **Reduced motion:** with `prefers-reduced-motion: reduce` the logo stays still. The status is still in words on the story ("Summarising…", "Checking the Wayback Machine…") and on the page.
+- **Only on-screen work counts:** "Is anything being summarised or looked up?" is answered from the bookmarks that a mounted feed or detail panel shows (and polls). Copies left in the cache from other views don't count, since they aren't refreshed.
+
+#### Changed
+- **Delete account… is filled red** (owner): Settings → Account's button now uses the `deadFg` fill with `onDead` text, like the dialog's Delete everything, instead of a red outline.
+- **Version 0.2.0** for the backend, the frontend and the extension.
+- **Docs and skills brought up to date**:
+  - README: status, the architecture with the model chain and Resend, project structure, every AI env var, and the API table's dev endpoints.
+  - `docs/PLAN.md`: the LLM decision (the fallback chain), new decision rows (email, account data, feed paging, logo animations as CSS, not GIFs), the repo layout, the data model, and Phase 2 marked done.
+  - `CLAUDE.md`: the AI and email lines.
+  - Skills:
+    - `llm-patterns`: a Daily limit section.
+    - `dev-setup`: the model env vars, the build command and formatting.
+    - `db-migrations`: the next migration number, and why user tables need `ON DELETE CASCADE` for Delete account.
+    - `deploy`: the email keys, and never `DEV_TOOLS`.
+    - `git-workflow`: the Design (canvas) section.
+    - `langgraph-agent`: Conversation while Ask works.
+    - `ui-design`: where the animations live in code.
+  - The design session updated the design wording in the same files.
+
+#### Notes
+- Lens (search) and Conversation (Ask) are designed but wait for search (Phase 3) and the Ask page (Phase 4).
+
 ### Account menu, Settings → Account and Earlier's pages
 
 #### Added
@@ -25,7 +66,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 #### Notes
 - If deleting fails, "Couldn't delete your account. Please try again." replaces the hint under the dialog's buttons (added in the build so a failure isn't silent, then approved on board SettingsAccountDeleteError).
-- The logo animations (five, one per job) are designed but not built yet.
 
 ### Open summary on briefs, dev tools, warm charcoal dark mode, read stories in place and every feed screen as a newspaper
 
@@ -146,9 +186,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Not built yet, all designed: the Summarise button and the bookmark detail panel (next step), search (Phase 3), the Ask page (Phase 4), tags (Phase 5), the Digest page (Phase 7), sorting, the row "⋯" menu, and Settings' AI usage and Account sections. The Ask and Digest tabs join the top bar when their pages exist.
 
 ### Design (canvas)
+- v93: Settings → Account's Delete account… button is now filled red (deadFg, onDead text), matching the build.
+- v92: moved the newspaper layout trials and the dark mode trials to a new Archive page.
 - Weekly digest redesigned as a newsletter: back-issue tabs instead of the sidebar, one centred sheet with a masthead, the AI overview as an editor's note with a drop cap, a section per theme with stories that open the detail panel (Summarise / Open summary like feed briefs), and a footer. Not built yet.
-- Logo animations for searching (Lens) and the Wayback Machine (Hourglass); Settings moved out of the top-bar tabs into the account menu; How it works left the account menu; delete-account error line.
-- Logo animations: Page back while summarising, Rewind while a page loads, Conversation while Ask works. Not built yet.
+- Logo animations for searching (Lens, not built yet) and the Wayback Machine (Hourglass); Settings moved out of the top-bar tabs into the account menu; How it works left the account menu; delete-account error line.
+- Logo animations: Page back while summarising, Rewind while a page loads, Conversation while Ask works (not built yet).
 - Stories start with their source line; briefs get Summarise / Open summary buttons that open the detail panel; Earlier is paginated, newest first.
 - Account menu with name, Settings, How it works, a dark-mode switch and Sign out (the theme button left the top bar); Settings → Account with profile, sign out, download my data and delete account (typed confirmation). Not built yet.
 - Softer "warm charcoal" dark mode everywhere; every feed screen rebuilt as the newspaper front page (sections, story states, search, loading, phone width); sign-up preview and How it works updated to match. Not built yet.
@@ -305,3 +347,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Docs**
   - `docs/PLAN.md`: architecture, decisions and phased roadmap.
   - `CLAUDE.md` and project skills (`dev-setup`, `llm-patterns`, `langgraph-agent`, `db-migrations`, `deploy`).
+
+[Unreleased]: https://github.com/Mansi145/Bookmark-Brain/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Mansi145/Bookmark-Brain/releases/tag/v0.2.0

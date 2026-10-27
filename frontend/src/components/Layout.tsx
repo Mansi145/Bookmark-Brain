@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import type { User } from '../api/types'
+import { useLogoMotion } from '../hooks/useLogoMotion'
 import { useSignOut } from '../hooks/useSignOut'
 import { useTheme } from '../hooks/useTheme'
 import Avatar from './Avatar'
@@ -21,6 +22,7 @@ const FEED_PATHS = ['/', '/sign-in-required', '/dead-links']
 
 export default function Layout({ user }: { user: User }) {
   const onFeed = FEED_PATHS.includes(useLocation().pathname)
+  const motion = useLogoMotion()
 
   return (
     <div className="min-h-screen bg-bg text-ink">
@@ -31,7 +33,7 @@ export default function Layout({ user }: { user: User }) {
         </div>
         <div className="relative mx-auto flex max-w-[1280px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-[18px]">
           <Link to="/" className="flex items-center gap-2.5 text-on-texture no-underline">
-            <Logo size={30} small />
+            <Logo size={30} small motion={motion} />
             <span className="font-serif text-[21px] font-bold tracking-[-0.01em]">Bookmark Brain</span>
           </Link>
 

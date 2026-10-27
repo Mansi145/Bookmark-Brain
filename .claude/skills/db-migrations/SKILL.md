@@ -16,7 +16,8 @@ uv run alembic downgrade -1 && uv run alembic upgrade head   # check downgrade w
 uv run alembic check                                         # models and migrations agree
 uv run pytest -q                                             # tests build the schema from the models
 ```
-Use `--rev-id 0004` (next number) so files stay ordered: `0001_…`, `0002_…`.
+Use `--rev-id` with the next number after the newest file in `alembic/versions/` (`0009` after
+`0008_limit_notices.py`) so files stay ordered: `0001_…`, `0002_…`.
 Never edit a migration that has already run on Neon; write a new one.
 Changing a migration that has only run locally: first `alembic downgrade -1` **with the old file in
 place** (its `downgrade()` knows what to undo), then edit/replace the file and `upgrade head`.
@@ -43,6 +44,9 @@ Editing first leaves the local DB with columns the new file doesn't know about.
 ## Conventions
 - Timestamps are `timestamptz`, default `now()`.
 - Every user-owned table has `user_id` with `ON DELETE CASCADE`; queries always filter by it.
+  **Delete account** (`DELETE /api/account`) relies on this: it deletes the user row and the
+  database removes the rest. A new user-owned table without the cascade would block deleting
+  accounts. If it holds the user's own data, add it to Download my data (`app/api/account.py`) too.
 - Soft-delete bookmarks with `deleted_at` (the extension may resend removals).
 - Unique constraints: `documents.normalized_url`, `(bookmarks.user_id, bookmarks.document_id)`.
 - Embedding dimension must match the configured embedding model; store `embedding_model` alongside it.

@@ -39,10 +39,14 @@ START → agent ──(tool_calls?)──yes──► tools ──┐
 ## Streaming
 `POST /api/chat` uses `graph.astream_events(..., version="v2")` and forwards these as SSE events:
 - `on_chat_model_stream` → `token`
-- `on_tool_start` / `on_tool_end` → `step` (UI shows "🔎 searching…")
+- `on_tool_start` / `on_tool_end` → `step` (the UI shows each step as it happens; see the `Ask` board)
 - final → `done` with cited doc ids
 
-Each chat turn counts against `AI_DAILY_LIMIT_PER_USER`. Set `recursion_limit` (e.g. 8) so a confused agent can't loop forever.
+From sending a question until the first token, the top-bar logo plays **Conversation** (`ui-design`
+skill): give the chat request `mutationKey: ['ask']` and add it to
+`frontend/src/hooks/useLogoMotion.ts` and `LogoMotion` in `Logo.tsx`.
+
+Each chat turn counts against `AI_DAILY_LIMIT_PER_USER` (see Daily limit in `llm-patterns`). Set `recursion_limit` (e.g. 8) so a confused agent can't loop forever.
 
 ## Evaluating
 `backend/evals/agent_eval.py` runs fixed questions against fixture bookmarks and checks the cited doc ids. Run it after changing prompts or tools, and inspect the traces in LangSmith.

@@ -1,6 +1,6 @@
 # Bookmark Brain
 
-Collects browser bookmarks through an extension, shows them as a reading-list feed, summarises them with AI, and supports hybrid search plus a chat agent ("ask your bookmarks"). Full plan, status and the reasons behind each decision: [docs/PLAN.md](docs/PLAN.md).
+Collects browser bookmarks through an extension, shows them as a newspaper-style front page, summarises them with AI, and supports hybrid search plus a chat agent ("ask your bookmarks"). Full plan, status and the reasons behind each decision: [docs/PLAN.md](docs/PLAN.md).
 
 The owner is learning how to integrate AI agents. When you implement something, briefly explain the *why* (especially for AI/LLM concepts), and keep the code readable rather than clever. Everything must work on free tiers.
 
@@ -9,7 +9,8 @@ The owner is learning how to integrate AI agents. When you implement something, 
 - **frontend/**: React + Vite + TypeScript, TanStack Query, Tailwind v4, React Router.
 - **extension/**: WXT (Manifest V3); uses `chrome.bookmarks` and syncs to `POST /api/sync` with a personal access token (PAT), obtained through one-click connect.
 - **DB**: Postgres + pgvector (local: docker-compose; prod: Neon). Full-text search via `tsvector`.
-- **AI**: LangChain + LangGraph. Gemini Flash is primary, Groq is the fallback (`.with_fallbacks`). Gemini embeddings. LangSmith tracing.
+- **AI**: LangChain + LangGraph. Summaries use a fallback chain of free models (Gemini → a second Gemini model → OpenRouter → NVIDIA NIM → Groq, `.with_fallbacks`; a provider without a key is skipped). Gemini embeddings. LangSmith tracing.
+- **Email**: Resend's free plan, one HTTPS call in `backend/app/services/mail.py` (the Limit reached dialog's "Notify the maintainer").
 - **Hosting**: Render (API, kept warm by a `/health` ping) + Neon + Vercel.
 
 ## Conventions
@@ -22,7 +23,7 @@ The owner is learning how to integrate AI agents. When you implement something, 
 - Tests must not call real LLM APIs or the network; use LangChain fake chat models and `httpx.MockTransport`.
 - `frontend/src/api/types.ts` mirrors `backend/app/schemas.py`; change both together.
 - The extension keeps minimal permissions (no `<all_urls>`); see the `extension` skill before touching the connect flow.
-- UI follows the design direction in the `ui-design` skill (dark Nude nebula texture with white text on it, off-white backgrounds (never pure white), dark Nude accents with white text, near-black text elsewhere, Aleo + Geist, image-free reading list). Design is done in a separate design session on the canvas; build only what has been designed there, and **ask the owner before designing or restyling anything new**.
+- UI follows the design direction in the `ui-design` skill (dark Nude nebula texture with white text on it, off-white backgrounds (never pure white), dark Nude accents with white text, near-black text elsewhere, warm charcoal dark mode, Aleo + Geist, Masthead BB logo, a newspaper front-page feed with a preview image on the top story only). Design is done in a separate design session on the canvas; build only what has been designed there, and **ask the owner before designing or restyling anything new**.
 
 ## Git
 - Commit, push or open PRs only when the owner asks.

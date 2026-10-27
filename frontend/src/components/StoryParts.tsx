@@ -38,6 +38,8 @@ export function PageState({ bookmark }: { bookmark: Bookmark }) {
 function DeadLink({ bookmark }: { bookmark: Bookmark }) {
   const queryClient = useQueryClient()
   const lookUp = useMutation({
+    // The top-bar logo shows the Hourglass while any of these is on its way (useLogoMotion).
+    mutationKey: ['find-archive'],
     mutationFn: () => api.post<Bookmark>(`/api/bookmarks/${bookmark.id}/find-archive`),
     // Refetch so the story shows "Checking…"; the feed then polls until the lookup finishes.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bookmarks'] }),
