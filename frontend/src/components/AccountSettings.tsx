@@ -100,7 +100,7 @@ export default function AccountSettings({ user }: { user: User }) {
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="mt-3.5 h-11 cursor-pointer rounded-[10px] border border-dead-fg bg-transparent px-4 font-semibold text-dead-fg"
+          className="mt-3.5 h-11 cursor-pointer rounded-[10px] border border-dead-fg bg-dead-fg px-4 font-semibold text-on-dead"
         >
           Delete account…
         </button>

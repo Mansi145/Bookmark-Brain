@@ -41,7 +41,10 @@ State lives in `storage.local`: `settings {apiUrl, token}`, `status {at, ok, mes
    never choose where the extension sends data.**
 4. It replies `connected`, then sends `sync-now` to the background and waits; the background answers
    (`sendResponse` + `return true`, works in Chrome and Firefox) with `{ok, count}` or `{ok:false, error}`,
-   relayed to the page as `synced`. The page shows a loader, then navigates to the feed.
+   relayed to the page as `synced`. While syncing, the page polls `GET /api/bookmarks/sync-summary`
+   to show bookmarks arriving; once `synced` arrives it shows a summary with **Open your feed**
+   (it doesn't navigate on its own). A failed first sync gets its own "Connected, but the first
+   sync failed" state.
 5. No reply within 4 s: the page shows the token once for a manual paste.
 
 Message names live in `lib/connect.ts` `MSG` **and** are duplicated in `ConnectPage.tsx`: keep them

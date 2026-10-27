@@ -1,6 +1,6 @@
 ---
 name: llm-patterns
-description: Conventions for calling LLMs and embedding models in Bookmark Brain (Gemini primary, Groq fallback, LangChain). Use when writing or changing summarisation, tagging, digest, embeddings, prompts, or anything in backend/app/ai/.
+description: Conventions for calling LLMs and embedding models in Bookmark Brain (LangChain, a fallback chain of free models: Gemini, OpenRouter, NVIDIA NIM, Groq). Use when writing or changing summarisation, tagging, digest, embeddings, prompts, or anything in backend/app/ai/.
 ---
 
 # LLM patterns
@@ -41,12 +41,28 @@ When code needs fields back, use `model.with_structured_output(PydanticSchema)` 
 1. **Cache per document**: summaries, key points, tags and embeddings are stored on `documents` (shared across users). Check the cache before calling the model.
 2. **Background, not request path**: summarise/embed/tag run as `jobs`, never inside an HTTP handler. Only chat and explicit "re-summarise" actions call the LLM on request, and both check `AI_DAILY_LIMIT_PER_USER`.
 3. **Truncate input** to a token budget before sending (long articles: take the beginning plus headings).
-4. Retries come from the job queue: a handler that **raises** (429, timeouts, 5xx from both Gemini and
-   Groq) is retried after 30 s and 2 min, then marked `failed` after 3 attempts (`background-jobs`
+4. Retries come from the job queue: a handler that **raises** (429, timeouts, 5xx from every model in
+   the chain) is retried after 30 s and 2 min, then marked `failed` after 3 attempts (`background-jobs`
    skill). Don't write your own retry loops around model calls; for a bad *answer* (invalid structured
    output) retry once inside the handler, then mark the document `failed`.
 5. Article text comes from the `fetch_page` job (safe fetcher + trafilatura), stored on `documents`;
    LLM handlers read it from there and never download pages themselves.
+
+## Daily limit (`services/usage.py`)
+- `take_summary` checks and counts one summary in a single `INSERT … ON CONFLICT DO UPDATE … WHERE
+  summaries < limit RETURNING` statement, so two quick clicks can't both slip under
+  `AI_DAILY_LIMIT_PER_USER`. A cached summary costs nothing. The count is per UTC day (`today()`,
+  `resets_at()`).
+- Refused → 429, after `note_limit_reached` records when the user first hit it that day. In the
+  web app any 429 from an AI action calls `openLimitDialog()` (`frontend/src/lib/limit.ts`), which
+  opens the Limit reached dialog. Users never see a usage meter (owner); the free-plan note sits next
+  to AI actions.
+- "Notify the maintainer" (`POST /api/usage/notify-maintainer`) claims today's email in one statement
+  (`claim_notice`), so a user can send at most one a day; if Resend refuses, `release_notice` gives
+  the slot back (502) so they can try again.
+- New AI actions (chat, tags) should count through the same table and answer 429 the same way.
+- `DEV_TOOLS=true` (local only) enables `/api/usage/dev/use-up` and `/dev/reset` to try all this
+  without 50 real summaries.
 
 ## Testing
 Tests must never hit real APIs. Monkeypatch `app.ai.llm.get_structured_model` (chains call it as

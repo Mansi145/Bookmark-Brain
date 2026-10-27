@@ -1,16 +1,18 @@
 import { Link } from 'react-router'
-import Logo from './Logo'
+import Logo, { type LogoMotion } from './Logo'
 import Nebula from './Nebula'
 
 // A full-page state shown instead of the app (design boards ConnectStates and ErrorStates): the
 // dark Nude texture, the logo, and one centred card with an icon, a title, a line and one action.
 // `header` replaces the round icon (the Connect steps); `note` sits under the card, on the texture.
+// `logoMotion` animates the logo (the server waking up).
 
 export default function StatePage(props: {
   icon?: React.ReactNode
   header?: React.ReactNode
   title: string
   note?: React.ReactNode
+  logoMotion?: LogoMotion
   children: React.ReactNode
 }) {
   return (
@@ -18,7 +20,7 @@ export default function StatePage(props: {
       <Nebula variant="nude" size="hero" />
       <header className="relative mx-auto w-full max-w-[1240px] px-6 py-6">
         <Link to="/" className="inline-flex items-center gap-2.5 text-on-texture no-underline">
-          <Logo size={34} small />
+          <Logo size={34} small motion={props.logoMotion} />
           <span className="font-serif text-xl font-bold">Bookmark Brain</span>
         </Link>
       </header>

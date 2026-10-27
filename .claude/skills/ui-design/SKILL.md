@@ -1,6 +1,6 @@
 ---
 name: ui-design
-description: Bookmark Brain's final visual design (dark Nude nebula texture, colours, fonts, logo, landing page and image-free reading-list feed) with exact tokens for building it in React/Tailwind. Use when building or restyling any frontend page or component, the extension popup, or design canvas boards.
+description: Bookmark Brain's final visual design (dark Nude nebula texture, colours, warm charcoal dark mode, fonts, Masthead BB logo and its animations, landing page, newspaper front-page feed, Settings, Digest) with exact tokens for building it in React/Tailwind. Use when building or restyling any frontend page or component, the extension popup, or design canvas boards.
 ---
 
 # UI design
@@ -8,11 +8,18 @@ description: Bookmark Brain's final visual design (dark Nude nebula texture, col
 **Ask the owner before designing or restyling anything that isn't already decided here**: which
 page, layout, what goes where. Present options with a recommendation; don't invent new looks.
 
-Source of truth: the Claude design canvas https://claude.ai/artifact/88oGw1iJQJW2P8tB6jRBVT
-(boards: `Login.dc.html` landing page, `Main.dc.html` feed, `FeedDark.dc.html`, `Settings.dc.html`,
-`SettingsDark.dc.html`, `Popup.dc.html` with its states `PopupNotConnected` / `PopupSyncing` /
-`PopupError` / `PopupDark`, `Texture.dc.html`, `Logo.dc.html`). Read a board's file through the
-Artifact tool when you need exact markup.
+Source of truth: the Claude design canvas https://claude.ai/artifact/88oGw1iJQJW2P8tB6jRBVT.
+Read a board's file through the Artifact tool when you need exact markup. Its pages:
+- **Home**: `Login` (sign-up), `HowItWorks`, `Main` (the feed; every feed board imports it), the
+  feed sections, empty states, `RowStates`, `FeedLoading`, `Ask`, `AskEmpty`, `Digest`,
+  `DigestDark`, `FeedSearch`, `FeedDetail`, `FeedDetailUnsummarised`, `FeedFirstRun`, `MarkAsRead`,
+  `FeedPhone`, `FeedPhoneDark`.
+- **Components**: `Texture`, `LogoFinal`, `LogoAnimations`, plus the previous logo and the logo tests.
+- **Other screens**: `FeedDark`, Settings (Browsers, Account, delete dialog, dark), `AccountMenu`,
+  the popup states, Connect and error pages (light and dark), `LimitDialog`.
+- **Archive** (owner, 2026-10-27): the trials that were compared and decided, for reference only;
+  don't build from them. The newspaper layouts (`NewsClassic`, `NewsGrid`, `NewsSections`) and the
+  softer dark mode options (`DarkModeOptions`, `DarkExample*`).
 
 ## Tokens
 | Token | Light | Dark | Use |
@@ -31,11 +38,12 @@ Artifact tool when you need exact markup.
 | skeleton | `#E7E4DF` | `#3A3430` | loading bars and progress-bar tracks (warm grey to sit on the off-whites) |
 | deadBg / deadFg | `#F8E3E3` / `#7C1D1D` | `#3D2224` / `#F5B5B5` | dead link notice |
 
-**Dark mode is "warm charcoal"** (owner, 2026-10-27; compared on the canvas's Dark mode page): lifted,
+**Dark mode is "warm charcoal"** (owner, 2026-10-27; the options are on the canvas's Archive page): lifted,
 slightly warm greys with off-white text instead of near-black and bright white. Contrast on cards:
 text 11.9, `ink2` 8.5, `muted` 5.7.
 
-Theme follows the system (`prefers-color-scheme`). Text is near-black, never mid-grey; keep 4.5:1
+Theme follows the system (`prefers-color-scheme`) until the user flips the Dark mode switch in the
+account menu; remember that choice. Text is near-black, never mid-grey; keep 4.5:1
 contrast, even for 12–13 px meta text. Define these as CSS variables / Tailwind `@theme` tokens once,
 not as scattered hex values.
 
@@ -52,7 +60,9 @@ stay as in the table. Primary action buttons stay `ink` (near-black) with white 
 
 **Fonts** (Google Fonts): **Aleo** 500/600/700 for headings, group names and bookmark titles;
 **Geist** 400/500/600 for everything else (15 px base, 1.5 line height).
-Sizes in the feed: page title 40 px, group band 19 px, row title 21 px, summary 14 px, meta 13 px.
+Sizes in the feed: page title 40 px; edition masthead 48 px (32 px for the small sheets, 30 / 24 px
+on phones); headlines lead 44 px, second 28 px, standard 21 px, brief 17 px, with summaries at 18 /
+15 / 14 px; source line 13 px (12 px on briefs).
 
 ## Nebula texture: dark Nude (decided 2026-10-23)
 Replaces the old blue → pink Cloudlifter texture ("looked unprofessional"). It is the dark version
@@ -109,10 +119,13 @@ tile. Colours: tile `#F4EDE4`, letters `#141516`, rules `#503931` (accent). Same
   bookmarks, plus dead links (archived copy on request) / reading status / digest), a closing call to action on the texture with
   the same sign-in buttons, and the footer.
 
-## App shell and feed (signed in), updated 2026-10-23
-Boards: `Main.dc.html` (feed; a `section` setting switches feed / signin / dead / states, `empty`
-shows the empty state, `dark` the dark theme), `FeedSignIn`, `FeedDead`, `FeedSignInEmpty`,
-`FeedDeadEmpty`, `RowStates` (every row state in one place), `FeedDark`.
+## App shell and feed (signed in), updated 2026-10-27
+Boards: `Main.dc.html` (feed; a `section` setting switches feed / signin / dead / states / search /
+firstrun / loading, `detail` and `unsummarised` open the detail panel, `empty` shows the empty
+state, `dark` the dark theme, `menu` the account menu), `FeedSignIn`, `FeedDead`, `FeedSignInEmpty`,
+`FeedDeadEmpty`, `RowStates` (every story state in one place), `FeedDark`. The feed's layout is the
+newspaper front page further down ("Newspaper feed"); the bullets here cover the shell and the
+states every story shares.
 - **Top bar** on the dark texture, white text: small logo + "Bookmark Brain" (Aleo 21 px); a dark
   search field (`rgba(23,24,26,.55)`, 1 px `rgba(255,255,255,.18)`, "Search by meaning or keyword…",
   `/` shortcut); **tabs Feed · Ask · Digest** (Settings is not a tab any more: owner, 2026-10-27; it's in the account menu) (owner: the sections are NOT in the top nav; the
@@ -145,25 +158,22 @@ shows the empty state, `dark` the dark theme), `FeedSignIn`, `FeedDead`, `FeedSi
   "Nothing needs sign-in" / "Pages that need an account or a subscription will show up here.";
   "No dead links" / "Links that stop working show up here. You can look each one up on the Wayback Machine."
   Filters stay with zero counts.
-- **Reading list, no images** (decided: no `og:image` anywhere). Rows grouped by save date
-  (**Today / This week / Earlier**); each group has a free-standing header band (radius 12 px, Aleo
-  name + "n bookmarks", white / `onAccent2` text) on `band`, then the group's articles as separate
-  `surface` cards (radius 12 px, 1 px `line`, 8 px apart), all on the feed `panel`.
-  Row: meta line (site logo · site · folder · browser · age, plain
-  text), Aleo title, then the state line / summary / Summarise area, right column with "⋯" menu
-  (36 px) and "n min read" (from word count, shown before any summary). Read = row at 70 % opacity.
-  No grid/list toggle, no coloured chips.
+- **The old reading list (date bands + a card per row) is replaced** by the newspaper front page
+  (owner, 2026-10-27; see "Newspaper feed" below). What carried over: Today / This week / Earlier
+  by save date, "n min read" from the word count, read stories faded, no grid/list toggle, no
+  coloured chips.
 - **Site logos (favicons)** (owner, 2026-10-23): the site's own logo, 14 px, centred on a 20 px
   **white `#FFFFFF` chip** (radius 6 px, 1 px `line` border) in both themes, so dark marks (GitHub)
   stay visible on dark and colourful ones don't clash with the brown accents. Fallback when there's
   no logo or it fails to load: the 20 px letter tile on `accent` with a white letter. `aria-hidden`
   (the site name is next to it). Also used on the landing preview card and the How it works
-  examples; NOT in the sidebar. The only image allowed anywhere: no page images still holds. Canvas
-  boards use simple stand-in shapes because they can't load real favicons.
+  examples; NOT in the sidebar. Apart from these, the only image is the top lead story's preview
+  image (see "Newspaper feed"); no other page images. Canvas boards use simple stand-in shapes
+  because they can't load real favicons.
 - **Summaries are on demand.** Every row without a summary has a **Summarise** button (36 px,
   outlined, three-lines icon) under the title, where the summary will appear:
   idle "Summarise" → working: `accent2` pill, white spinner + "Summarising…", + one skeleton bar → done: the
-  2-line summary → failed: "Couldn't summarise this page." + **Try again** → daily limit: the button
+  summary, as many lines as the story's size allows (briefs: Open summary) → failed: "Couldn't summarise this page." + **Try again** → daily limit: the button
   disabled (50 %) + "Daily summary limit reached · resets at midnight UTC" in `muted`.
 - **No source or trust labels** (owner's decision: badges made the app look unreliable). Summaries
   from the live page, an archive.org copy, Gemini reading the URL, or a link-only guess all look the
@@ -229,8 +239,8 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
 - **Connect** (`ConnectStates`, all states on one board) and **error pages** (`ErrorStates`), on the
   dark texture with a `surface` card per state (icon on `accent`, Aleo 24 px title, one line, one
   action). Connect: signed out (sign-in buttons) → Connecting… → Syncing (n found, progress bar) →
-  Connected ("Opening your feed…", Open feed now) → extension didn't answer (token shown once + Copy)
-  → link expired (15 min). Errors: 404 (Back to your feed), server waking up (free server sleeps, up
+  Connected (a summary with Open your feed; see Connect extras) → extension didn't answer (token
+  shown once + Copy) → link expired (15 min). Errors: 404 (Back to your feed), server waking up (free server sleeps, up
   to a minute), signed out (sign-in buttons), something went wrong (Try again).
 - These cards **follow the theme** (owner): `surface` / `ink` / `ink2`, so they turn dark in dark
   mode (main button `ink` with `onInk` text; sign-in buttons stay dark); the texture behind them is
@@ -267,7 +277,8 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   second → standard → brief; read ones last and faded); summaries (a 5–6 sentence
   paragraph) show in full on the lead, 5 lines on second stories, 3 on standard, none on briefs; only the top lead shows the page's
   preview image (16:9, caption "Image from <site>"; no image → a text-only lead). `NewsGrid` and
-  `NewsSections` were the other trials.
+  `NewsSections` were the other trials; all three are on the Archive page now, and `Main` is the
+  board to build from.
   - **Story anatomy** (owner, 2026-10-27): every story starts with its **source line** (site logo ·
     site · read time · age) at the top, above the folder label and the headline; on the lead it sits
     just under the preview image. Same in the sections, states, search and the mini front pages.
@@ -299,7 +310,8 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   extension" (page opened without the extension's link; Connect by hand).
 
 ## Settings
-Same dark-texture top bar as the feed (Settings current). The section menu (Browsers,
+Same dark-texture top bar as the feed (no tab is current, since Settings opens from the account
+menu). The section menu (Browsers,
 Account; selected on `accent`, white text, weight 600) sits on a `panel`; the main column is another
 `panel` with page title "Settings" (Aleo 40 px) and each section as a bordered `surface` card,
 radius 12 px, Aleo 21 px headings:
@@ -321,7 +333,7 @@ radius 12 px, Aleo 21 px headings:
     their summaries. It's ready in a few seconds." + **Download my data** (`ink`, download icon).
   - **Delete account** (heading in `deadFg`): "Permanently deletes your account, your bookmarks, read
     states, tags and connected browsers. The extension stops syncing. This can't be undone." +
-    outlined `deadFg` **Delete account…**, which opens a dialog (`SettingsAccountDelete`):
+    **Delete account…** filled with `deadFg`, `onDead` text (owner, 2026-10-27; it was outlined), which opens a dialog (`SettingsAccountDelete`):
     bin icon on `deadBg`, "Delete your account?", what will be deleted with real counts, a
     "Download my data" link, "Type DELETE to confirm" input, **Delete everything** (`deadFg` fill,
     `onDead` text: white light / `#1F1C1A` dark; disabled until DELETE is typed) + Cancel.
@@ -358,8 +370,14 @@ under `prefers-reduced-motion: reduce`, and the status is always also said in wo
 - **Wayback Machine → "Hourglass"**: a 30/200 `accent` badge (cream outline) in the bottom-right
   corner of the tile holds a white hourglass that turns over every 1.8 s (still for 40 %, turns
   180° over 20 %, still again), while we look for an archived copy.
+- **In code**: `frontend/src/components/Logo.tsx` (`motion` prop), keyframes in `index.css`
+  (`animate-page-back`, `animate-rewind`, `animate-hourglass`), and `hooks/useLogoMotion.ts` picks
+  one at a time (Hourglass, then Page back, then Rewind). When the work ends, the logo finishes its
+  current cycle. Lens and Conversation come with search and Ask.
 
 ## Later (owner's backlog, don't design until they say so)
+- Phone boards (`FeedPhone`, `FeedPhoneDark`) need another pass: the owner said they don't look
+  good yet (low priority).
 
 ## Rules
 - Real `<button>`, `<a href>`, `<label>`; `aria-label` on icon buttons; visible focus; touch targets

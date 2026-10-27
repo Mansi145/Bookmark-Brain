@@ -71,6 +71,50 @@
       transform: translateX(250%);
     }
   }
+
+  /* The top-bar logo while the app works (design board LogoAnimations, Logo.tsx). Each cycle
+     ends at rest, so the logo can stop at the end of any cycle. */
+  /* Summarising, "Page back": a copy of the right B turns over the spine (0.7 s) and disappears,
+     then rests, every 2 s. */
+  --animate-page-back: page-back 2s ease-in-out infinite;
+  @keyframes page-back {
+    0% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    35% {
+      transform: scaleX(-1);
+      opacity: 1;
+    }
+    36%,
+    100% {
+      transform: scaleX(-1);
+      opacity: 0;
+    }
+  }
+  /* A page loading, "Rewind": one full turn anticlockwise, then a rest. */
+  --animate-rewind: rewind 2.2s cubic-bezier(0.6, 0, 0.3, 1) infinite;
+  @keyframes rewind {
+    0% {
+      transform: rotate(0);
+    }
+    70%,
+    100% {
+      transform: rotate(-360deg);
+    }
+  }
+  /* Looking for an archived copy, "Hourglass": still, turns over, still again. */
+  --animate-hourglass: hourglass 1.8s ease-in-out infinite;
+  @keyframes hourglass {
+    0%,
+    40% {
+      transform: rotate(0);
+    }
+    60%,
+    100% {
+      transform: rotate(180deg);
+    }
+  }
 }
 
 /* Dark theme, "warm charcoal" (owner, ui-design skill): lifted, slightly warm greys with off-white

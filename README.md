@@ -2,7 +2,7 @@
 
 **Saved it? Now actually use it.**
 
-Bookmark Brain collects the bookmarks you've saved in every browser (Chrome, Edge, Brave, Firefox) into one calm reading list. It summarises each page with AI, lets you search by what a page was *about* rather than its exact title, and lets you ask questions across everything you've saved.
+Bookmark Brain collects the bookmarks you've saved in every browser (Chrome, Edge, Brave, Firefox) into one calm front page, laid out like a newspaper. It summarises each page with AI, lets you search by what a page was *about* rather than its exact title, and lets you ask questions across everything you've saved.
 
 It's a personal learning project for integrating AI agents into a real full-stack app: a FastAPI backend, a React frontend and a browser extension.
 
@@ -12,12 +12,12 @@ It's a personal learning project for integrating AI agents into a real full-stac
 |---|---|---|
 | 0 | Foundations: monorepo, FastAPI, Postgres + pgvector, Alembic, React app | ✅ Done |
 | 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
-| 2 | Background job queue, page fetching, on-demand AI summaries (Gemini, Groq fallback) | ✅ Done |
+| 2 | Background job queue, page fetching, on-demand AI summaries (a fallback chain of free models), daily limit with a Limit reached dialog | ✅ Done |
 | 3 | Hybrid search: keyword + semantic (embeddings) | Planned |
 | 4 | "Ask your bookmarks" chat agent (LangGraph) | Planned |
-| 5–7 | Auto-tags, dead-link checks, reading status, weekly digest | Planned |
+| 5–7 | Auto-tags, regular dead-link re-checks, weekly digest | Planned (Dead links, Find archived copy and read / unread are already in) |
 | 8 | Deploy (Render + Neon + Vercel), CI | Planned |
-| UI | Final design (texture top bar, image-free reading list), GitHub sign-in | Planned |
+| UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done (GitHub sign-in planned) |
 
 The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](docs/PLAN.md).
 
@@ -27,11 +27,11 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
  Browser extension ──(access token, POST /api/sync)──┐
                                                      ▼
  React app ──(session cookie, REST)──► FastAPI ──► Postgres (+ pgvector)
+                                          │  └────► Resend (the "limit reached" email to the maintainer)
                                           │
-                                          │
-                       in-process job worker (jobs table): fetch page → summarise (on demand) → embed
+                       in-process job worker (jobs table): fetch page → summarise (on demand) → embed (Phase 3)
                                           ▼
-                              Gemini ──fallback──► Groq
+              Gemini → second Gemini model → OpenRouter → NVIDIA NIM → Groq   (fallback chain)
 ```
 
 - **The extension** is the only part that can read your bookmarks; browsers don't let websites do it. On first run it sends your whole bookmark tree, then only the changes (added, edited, moved, removed). An hourly full sync catches anything it missed.
@@ -39,6 +39,8 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
 - **Documents are shared, bookmarks are per user.** Each unique URL is stored once, so the AI work for it (summary, embedding) only has to happen once, however many people saved it.
 - **Sign-in:** the web app signs in with Google and gets an httpOnly session cookie. The extension uses a personal access token that it receives through **one-click connect**: the popup opens the web app's `/connect` page, which creates the token and hands it to the extension. Only a hash of the token is stored.
 - **Slow work runs in the background.** Fetching pages and AI summaries run as rows in a `jobs` table, processed by a worker inside the API. Syncs stay fast, jobs survive restarts, and failures are retried. The server only fetches public addresses, so a bookmark can't make it probe its own network.
+- **Summaries on demand, from free models.** *Summarise* queues a job; the worker tries free models in order through LangChain's `.with_fallbacks()` (two Gemini models, OpenRouter, NVIDIA NIM, Groq), skipping any provider without a key. Each URL is summarised once and shared. Each user has a daily limit; hitting it opens a dialog that can email the maintainer (at most once a day per user).
+- **Your data is yours.** Settings → Account downloads everything as a JSON file or deletes the account. Both work only from the web app's session, never with an extension token.
 - **A newspaper, text first.** The feed is your own front page: editions by when you saved things, the newest unread stories biggest, and only the top story shows the page's own preview image.
 
 ## Tech stack
@@ -49,7 +51,8 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
 | Database | PostgreSQL 16 + pgvector (Docker locally, Neon in production) |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, React Router |
 | Extension | WXT (Manifest V3), works in Chrome, Edge, Brave and Firefox |
-| AI (planned) | LangChain + LangGraph, Gemini (primary), Groq (fallback), LangSmith tracing |
+| AI | LangChain with a fallback chain of free models (Gemini, OpenRouter, NVIDIA NIM, Groq); LangGraph agent and LangSmith tracing planned |
+| Email | Resend (free plan), one HTTPS call |
 | Tooling | pytest, ruff, oxlint |
 
 ## Project structure
@@ -61,20 +64,25 @@ bookmark_brain/
 │   │   ├── main.py           app setup, CORS, routers
 │   │   ├── config.py         settings from env / .env
 │   │   ├── db.py             async engine + session dependency
-│   │   ├── models.py         users, api_tokens, documents, bookmarks, bookmark_sources
+│   │   ├── models.py         users, api_tokens, documents, bookmarks, bookmark_sources, jobs, ai_usage
 │   │   ├── schemas.py        request/response models
 │   │   ├── auth/             Google token check, session JWTs, access tokens
-│   │   ├── api/              routes: health, auth, tokens, sync, bookmarks
-│   │   ├── services/         URL normalisation, sync/merge, safe page fetcher
+│   │   ├── api/              routes: health, auth, tokens, sync, bookmarks, usage, account
+│   │   ├── services/         URL normalisation, sync/merge, safe page fetcher, text extraction, sign-in
+│   │   │                     detection, Wayback Machine, site icons, preview images, daily limit, email
+│   │   ├── ai/               llm.py (the model fallback chain), chains.py, prompts/
 │   │   └── worker.py         background job queue + worker
 │   ├── alembic/              database migrations
 │   └── tests/                pytest (uses a separate test database)
 ├── frontend/                 React web app
 │   └── src/
 │       ├── api/              fetch client + types
-│       ├── pages/            Login (sign-up), HowItWorks, Feed, Settings, Connect
-│       ├── components/       Layout, Newspaper (the feed's front page), StoryParts, BookmarkDetail, Logo, Nebula (texture), SignInButtons
-│       └── hooks/            useMe (current user)
+│       ├── pages/            Login (sign-up), HowItWorks, Feed, Settings, Connect, ErrorPages
+│       ├── components/       Layout (top bar, account menu), Newspaper (the feed's front page), StoryParts,
+│       │                     BookmarkDetail, Summarise, LimitDialog, AccountSettings, Logo (and its animations),
+│       │                     Nebula (texture), SignInButtons
+│       ├── hooks/            useMe, useSummarise, useLogoMotion, useTheme, useSignOut
+│       └── lib/              cache helpers, editions (the week split), the Limit reached event
 ├── extension/                Browser extension (WXT)
 │   ├── entrypoints/          background worker, popup, /connect content script
 │   ├── lib/                  sync.ts (bookmarks → API), connect.ts (one-click connect)
@@ -121,11 +129,13 @@ The API runs at http://localhost:8000, with the background job worker running in
 | `FRONTEND_ORIGIN` | always | `http://localhost:5173` |
 | `JWT_SECRET` | sign-in | generate with `openssl rand -hex 32` |
 | `GOOGLE_CLIENT_ID` | sign-in | your OAuth client ID |
-| `GOOGLE_API_KEY` | Phase 2+ | Gemini key from Google AI Studio |
-| `GEMINI_MODEL` / `GROQ_MODEL` | optional | override the models (defaults `gemini-3.5-flash-lite` / `openai/gpt-oss-120b`) |
-| `GROQ_API_KEY` | Phase 2+ | fallback model |
+| `GOOGLE_API_KEY` | summaries | Gemini key from Google AI Studio (the first two models in the chain) |
+| `OPENROUTER_API_KEY` | optional | OpenRouter's free models, next in the chain |
+| `NVIDIA_API_KEY` | optional | NVIDIA NIM (hosts DeepSeek for free), after OpenRouter |
+| `GROQ_API_KEY` | optional | the last fallback. A provider without a key is skipped |
+| `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `GROQ_MODEL` | optional | override the models (defaults `gemini-3.5-flash-lite`, `gemini-2.5-flash`, `nvidia/nemotron-3.5-super-vl:free`, `deepseek-ai/deepseek-v4.1-flash`, `openai/gpt-oss-120b`) |
 | `LANGSMITH_API_KEY` | Phase 4 | optional tracing |
-| `AI_DAILY_LIMIT_PER_USER` | Phase 2+ | protects the free-tier quota |
+| `AI_DAILY_LIMIT_PER_USER` | summaries | summaries each user may start per UTC day (default 50); protects the shared free-tier quota |
 | `RESEND_API_KEY` / `MAINTAINER_EMAIL` | optional | "Notify the maintainer" in the Limit reached dialog ([Resend](https://resend.com), free 100 emails a day). Without your own domain, `MAINTAINER_EMAIL` must be the address you signed up to Resend with. `EMAIL_FROM` overrides the sender |
 | `DEV_TOOLS` | local only | `true` turns on `/api/usage/dev/*`, which the dev build's "Dev tools" box uses to use up or reset today's AI limit (to try the Limit reached dialog). Never in production |
 | `WORKER_ENABLED` | optional | `false` runs the API without the background job worker (default `true`) |
@@ -170,7 +180,7 @@ After you change extension code, rebuild it and click the reload icon on the ext
 ### 5. Connect it all
 
 1. Click the extension icon, then **Connect this browser**. The web app opens at `/connect`.
-2. Sign in if asked, then click **Connect this browser** on that page. The extension receives its token automatically and syncs. The page shows a loader, then opens your feed when the first sync finishes.
+2. Sign in if asked. The page connects on its own: the extension receives its token automatically and syncs, the page shows your bookmarks arriving, then a summary (bookmarks and folders found). Click **Open your feed**.
 3. Add or remove a bookmark in the browser and refresh the feed to see it update.
 
 Manual fallback: in the web app, open **Settings → Create token** and copy the token (it's shown only once). Then in the extension choose **Advanced: paste a token**, keep the API URL as `http://localhost:8000`, and click **Save & sync now**.
@@ -211,10 +221,11 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET / PATCH | `/api/bookmarks/{id}` | cookie or token | one bookmark (detail panel) / mark it read or unread |
 | POST | `/api/bookmarks/{id}/summarise` | cookie or token | AI summary on demand (`again=true` to redo); cached per URL, counted against the daily limit |
 | GET | `/api/usage` | cookie or token | today's summaries used, the daily limit, when it resets |
+| POST | `/api/usage/notify-maintainer` | cookie or token | email the owner that this user hit today's limit (once a day per user; 409 if not at the limit, 503 if email isn't set up, 502 if Resend refused) |
+| POST | `/api/usage/dev/use-up`, `/api/usage/dev/reset` | cookie or token | local testing only: use up or reset today's limit (404 unless `DEV_TOOLS=true`) |
 | GET | `/api/account` | cookie only | what deleting the account would remove: bookmark and connected-browser counts |
 | GET | `/api/account/export` | cookie only | Download my data: a JSON file (bookmarks, where they're saved, read states, summaries, connected browsers; never token secrets) |
 | DELETE | `/api/account` | cookie only | delete the account and everything personal (body `{"confirm": "DELETE"}`); shared per-URL pages and summaries stay |
-| POST | `/api/usage/notify-maintainer` | cookie or token | email the owner that this user hit today's limit (once a day per user; 409 if not at the limit, 503 if email isn't set up, 502 if Resend refused) |
 
 ## Troubleshooting
 
