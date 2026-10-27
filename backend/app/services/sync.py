@@ -6,6 +6,7 @@ Steps (all in one transaction):
 3. upsert `bookmark_sources` (one per browser node)
 4. delete sources the browser no longer has
 5. soft-delete bookmarks that no browser has any more
+6. queue a fetch_page job for each document seen for the first time
 
 Uses Postgres `INSERT ... ON CONFLICT` so re-sending the same data is harmless
 (idempotent). That matters because the extension retries after failures.
@@ -21,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Bookmark, BookmarkSource, Document
 from app.schemas import SyncIn, SyncItem, SyncOut
 from app.services.urls import is_supported, normalize_url, site_of
+from app.worker import enqueue
 
 # Postgres caps a statement at 32,767 parameters; stay well below it.
 BATCH = 500
@@ -33,11 +35,13 @@ async def apply_sync(session: AsyncSession, user_id: int, payload: SyncIn) -> Sy
     for item in items:
         by_url.setdefault(normalize_url(item.url), []).append(item)
 
-    doc_ids = await _upsert_documents(session, by_url)
+    doc_ids, new_doc_ids = await _upsert_documents(session, by_url)
     bookmark_ids = await _upsert_bookmarks(session, user_id, by_url, doc_ids)
     await _upsert_sources(session, user_id, payload, by_url, bookmark_ids)
     removed = await _remove_sources(session, user_id, payload, items)
     await _soft_delete_orphans(session, user_id)
+    # Same transaction: the jobs exist only if the sync is saved.
+    await enqueue(session, "fetch_page", [{"document_id": i} for i in new_doc_ids])
     await session.commit()
 
     active = await session.scalar(
@@ -52,24 +56,33 @@ async def apply_sync(session: AsyncSession, user_id: int, payload: SyncIn) -> Sy
     )
 
 
-async def _upsert_documents(session, by_url: dict[str, list[SyncItem]]) -> dict[str, int]:
-    """Return {normalized_url: document_id}."""
+async def _upsert_documents(
+    session, by_url: dict[str, list[SyncItem]]
+) -> tuple[dict[str, int], list[int]]:
+    """Return ({normalized_url: document_id}, ids of documents created just now)."""
     ids: dict[str, int] = {}
+    new_ids: list[int] = []
     for chunk in batched(by_url.items(), BATCH):
         rows = [
             {"normalized_url": norm, "url": items[0].url.strip(), "site": site_of(norm)}
             for norm, items in chunk
         ]
-        await session.execute(
-            insert(Document).values(rows).on_conflict_do_nothing(index_elements=["normalized_url"])
+        # RETURNING with DO NOTHING gives back only the rows actually inserted, i.e. URLs
+        # no user had saved before. Those are the ones that need fetching.
+        inserted = await session.scalars(
+            insert(Document)
+            .values(rows)
+            .on_conflict_do_nothing(index_elements=["normalized_url"])
+            .returning(Document.id)
         )
+        new_ids.extend(inserted.all())
         result = await session.execute(
             select(Document.normalized_url, Document.id).where(
                 Document.normalized_url.in_([norm for norm, _ in chunk])
             )
         )
         ids.update(dict(result.all()))
-    return ids
+    return ids, new_ids
 
 
 async def _upsert_bookmarks(session, user_id, by_url, doc_ids) -> dict[str, int]:

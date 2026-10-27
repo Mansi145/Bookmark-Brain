@@ -93,6 +93,14 @@ class BookmarkOut(ORMModel):
     added_at: datetime
     read_state: ReadState
     status: DocumentStatus
+    http_status: int | None  # e.g. 404 for a dead link
+    icon_url: str | None  # the site's logo; the browser loads it from the site
+    reading_minutes: int | None  # from the page's word count; None until it's fetched
+    content_source: str | None  # "page" | "archive" | None (no text)
+    archive_status: str | None  # dead links: None | checking | found | none | failed
+    archive_url: str | None  # Wayback Machine copy, if there is one
+    archived_on: datetime | None
+    access: str | None  # "login" | "paywall" | None (open)
     sources: list[SourceOut]
 
 
@@ -106,6 +114,29 @@ class FacetCount(BaseModel):
     count: int
 
 
+class ReadStateCounts(BaseModel):
+    unread: int
+    read: int
+
+
 class FacetsOut(BaseModel):
+    total: int  # bookmarks in this section
+    read_states: ReadStateCounts  # for the Feed's reading-state bar
+    pending: int  # of those, pages still being fetched
     folders: list[FacetCount]
     browsers: list[FacetCount]
+
+
+class ArrivedBookmark(BaseModel):
+    title: str
+    site: str
+    icon_url: str | None
+
+
+class SyncSummaryOut(BaseModel):
+    """What one browser has sent so far (the Connect page while syncing, and when done)."""
+
+    bookmarks: int
+    folders: int
+    just_arrived: list[ArrivedBookmark]  # newest first
+    other_browsers: list[str]  # the user's other browsers that have synced bookmarks

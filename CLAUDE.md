@@ -22,7 +22,7 @@ The owner is learning how to integrate AI agents. When you implement something, 
 - Tests must not call real LLM APIs or the network; use LangChain fake chat models and `httpx.MockTransport`.
 - `frontend/src/api/types.ts` mirrors `backend/app/schemas.py`; change both together.
 - The extension keeps minimal permissions (no `<all_urls>`); see the `extension` skill before touching the connect flow.
-- UI follows the final design direction (Cloudlifter texture, near-black text, pale blue/pink accents, Aleo + Geist, image-free reading list). See the `ui-design` skill, and **ask the owner before designing or restyling anything new**.
+- UI follows the design direction in the `ui-design` skill (dark Nude nebula texture with white text on it, off-white backgrounds (never pure white), dark Nude accents with white text, near-black text elsewhere, Aleo + Geist, image-free reading list). Design is done in a separate design session on the canvas; build only what has been designed there, and **ask the owner before designing or restyling anything new**.
 
 ## Git
 - Commit, push or open PRs only when the owner asks.

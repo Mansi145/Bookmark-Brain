@@ -1,93 +1,275 @@
+/* Design board Popup.dc.html; tokens from the ui-design skill. Off-white body (panel) with
+   surface cards; accents are always the dark Nude colours with white text, in both themes. */
 :root {
   color-scheme: light dark;
-  font-family: system-ui, sans-serif;
-  --muted: #78716c;
-  --border: #d6d3d1;
+  --panel: #f5f4f2;
+  --surface: #fbfaf8;
+  --line: #e2dfda;
+  --ink: #141516;
+  --ink2: #2f3134;
+  --on-ink: #ffffff;
+  --accent: #503931;
+  --accent2: #564d3a;
+  --on-accent: #ffffff;
+  --on-accent2: #efe8e2;
+  --dead-bg: #f8e3e3;
+  --dead-fg: #7c1d1d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --panel: #1b1c1f;
+    --surface: #232427;
+    --line: #34363b;
+    --ink: #f2f2f4;
+    --ink2: #c9cbd1;
+    --on-ink: #17181a;
+    --dead-bg: #3d2224;
+    --dead-fg: #f5b5b5;
+  }
 }
 
 body {
-  width: 300px;
+  width: 360px;
   margin: 0;
-  padding: 16px;
-  font-size: 13px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: "Geist", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+:where(a, button, input, summary):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* --- Header strip on the texture (fixed colours in both themes) ------------ */
+
+.strip {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #503931 0%, #564d3a 100%);
+}
+
+.nebula {
+  position: absolute;
+  inset: -60px -8%;
+  filter: blur(40px);
+}
+
+.nebula span {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen; /* multiply is invisible on a dark texture */
+  opacity: 0.12;
+}
+
+.brand {
+  position: relative;
+  height: 64px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff;
 }
 
 h1 {
-  margin: 0 0 12px;
-  font-size: 16px;
+  margin: 0;
+  font-family: "Aleo", Georgia, serif;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* --- Body ---------------------------------------------------------------- */
+
+main {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.card[data-state="connected"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Like the feed's in-progress pills. */
+.card[data-state="syncing"] {
+  background: var(--accent2);
+  border-color: var(--accent2);
+  color: var(--on-accent);
+}
+
+.card[data-state="error"] {
+  background: var(--dead-bg);
+  border-color: var(--dead-bg);
+  color: var(--dead-fg);
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.card p {
+  margin: 6px 0 0;
+  color: var(--ink2);
+}
+
+.card[data-state="connected"] p,
+.card[data-state="syncing"] p {
+  color: var(--on-accent2);
+}
+
+.card[data-state="error"] p {
+  color: var(--dead-fg);
+}
+
+/* Show the icon that matches the state. */
+.icon {
+  display: none;
+}
+
+.card[data-state="not-connected"] .icon-plug,
+.card[data-state="connected"] .icon-check,
+.card[data-state="syncing"] .icon-spin,
+.card[data-state="error"] .icon-alert {
+  display: block;
+}
+
+.icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button[hidden] {
+  display: none;
+}
+
+.primary {
+  flex: 1;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-weight: 600;
+}
+
+.primary:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.outline {
+  flex: 1;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+details {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+summary {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ink2);
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] summary svg {
+  transform: rotate(90deg);
 }
 
 form {
-  display: grid;
-  gap: 10px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 label {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   font-weight: 500;
 }
 
 input {
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
+  font-weight: 400;
 }
 
-button {
-  padding: 7px;
-  border: 0;
-  border-radius: 6px;
-  background: #1c1917;
-  color: white;
-  font: inherit;
-  cursor: pointer;
+form .outline {
+  flex: none;
+  height: 40px;
+  border-radius: 8px;
 }
 
-button:disabled {
-  opacity: 0.5;
+.footnote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink2);
 }
 
-.status {
-  margin: 12px 0 0;
-  color: var(--muted);
-}
-
-.status.ok {
-  color: #15803d;
-}
-
-.status.error {
-  color: #dc2626;
-}
-
-.hint {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.actions {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-button.secondary {
-  background: transparent;
-  color: inherit;
-  border: 1px solid var(--border);
-}
-
-details {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-summary {
-  cursor: pointer;
-  color: var(--muted);
-  margin-bottom: 10px;
+.footnote a {
+  color: var(--ink);
+  font-weight: 500;
 }

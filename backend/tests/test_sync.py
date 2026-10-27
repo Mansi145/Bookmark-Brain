@@ -1,3 +1,10 @@
+import asyncio
+
+from sqlalchemy import update
+
+from app.models import Bookmark, ReadState
+from tests.conftest import TestSession
+
 CHROME = {"id": "chrome-install-1", "browser": "chrome"}
 EDGE = {"id": "edge-install-1", "browser": "edge"}
 
@@ -163,3 +170,57 @@ def test_sync_with_extension_token(client, anon_client):
 def test_sync_requires_auth(anon_client):
     response = anon_client.post("/api/sync", json={"source": CHROME, "upserts": []})
     assert response.status_code == 401
+
+
+def test_feed_filters_by_reading_state(client):
+    sync(client, CHROME, [item("1", "https://a.com/x"), item("2", "https://b.com/y")], full=True)
+
+    async def mark_read():
+        async with TestSession() as session:
+            await session.execute(
+                update(Bookmark)
+                .where(Bookmark.title == "https://a.com/x")
+                .values(read_state=ReadState.read)
+            )
+            await session.commit()
+
+    asyncio.run(mark_read())
+    assert [b["url"] for b in feed(client, read_state="read")["items"]] == ["https://a.com/x"]
+    assert [b["url"] for b in feed(client, read_state="unread")["items"]] == ["https://b.com/y"]
+    assert len(feed(client)["items"]) == 2
+    counts = client.get("/api/bookmarks/facets").json()["read_states"]
+    assert counts == {"unread": 1, "read": 1}
+
+
+def test_sync_summary_for_the_connect_page(client):
+    sync(
+        client,
+        CHROME,
+        [
+            item("1", "https://a.com/post", "First", folder="Bookmarks bar/Reading"),
+            item("2", "https://b.com/", "Second", folder="Bookmarks bar"),
+        ],
+        full=True,
+    )
+    sync(client, CHROME, [item("3", "https://c.com/", "Third", folder="Bookmarks bar")])
+    sync(client, EDGE, [item("9", "https://a.com/post", "First")], full=True)
+
+    response = client.get("/api/bookmarks/sync-summary", params={"browser": "chrome"})
+    assert response.status_code == 200, response.text
+    summary = response.json()
+    assert summary["bookmarks"] == 3
+    assert summary["folders"] == 2
+    # Newest received first; pages aren't fetched yet, so the logo is a /favicon.ico guess.
+    assert summary["just_arrived"][0] == {
+        "title": "Third",
+        "site": "c.com",
+        "icon_url": "https://c.com/favicon.ico",
+    }
+    assert [b["title"] for b in summary["just_arrived"]] == ["Third", "Second", "First"]
+    assert summary["other_browsers"] == ["edge"]
+
+
+def test_sync_summary_for_a_browser_with_nothing_yet(client):
+    sync(client, EDGE, [item("9", "https://a.com/post")], full=True)
+    summary = client.get("/api/bookmarks/sync-summary", params={"browser": "chrome"}).json()
+    assert summary == {"bookmarks": 0, "folders": 0, "just_arrived": [], "other_browsers": ["edge"]}
