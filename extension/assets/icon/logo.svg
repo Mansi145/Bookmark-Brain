@@ -1,0 +1,13 @@
+<!-- Bookmark Brain logo, full version ("Masthead BB", design board LogoFinal): a backwards B and
+     a B sharing one spine, between newspaper rules on a cream tile. For 64 px and up. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="22" fill="#F4EDE4"/>
+  <rect x="28" y="24" width="144" height="8" fill="#503931"/>
+  <rect x="28" y="38" width="144" height="2" fill="#141516"/>
+  <rect x="28" y="160" width="144" height="2" fill="#141516"/>
+  <rect x="28" y="168" width="144" height="8" fill="#503931"/>
+  <g fill="#141516">
+    <path fill-rule="evenodd" d="M91 52 H128 C147 52 155 62 155 75 C155 86 148 94 138 97 C151 100 159 110 159 123 C159 139 148 148 129 148 H91 Z M109 64 H126 C134 64 138 69 138 75 C138 82 134 87 125 87 H109 Z M109 99 H128 C137 99 142 106 142 115 C142 126 136 136 127 136 H109 Z"/>
+    <path fill-rule="evenodd" transform="translate(200 0) scale(-1 1)" d="M91 52 H128 C147 52 155 62 155 75 C155 86 148 94 138 97 C151 100 159 110 159 123 C159 139 148 148 129 148 H91 Z M109 64 H126 C134 64 138 69 138 75 C138 82 134 87 125 87 H109 Z M109 99 H128 C137 99 142 106 142 115 C142 126 136 136 127 136 H109 Z"/>
+  </g>
+</svg>

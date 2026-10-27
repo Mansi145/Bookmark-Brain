@@ -1,0 +1,11 @@
+<!-- Bookmark Brain logo, small version (design board LogoFinal): thick rules only, letters 14 %
+     bigger, rounder tile. For anything under 64 px (16/32/48 px extension icons). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" rx="34" fill="#F4EDE4"/>
+  <rect x="24" y="16" width="152" height="14" fill="#503931"/>
+  <rect x="24" y="170" width="152" height="14" fill="#503931"/>
+  <g fill="#141516" transform="translate(100 100) scale(1.14) translate(-100 -100)">
+    <path fill-rule="evenodd" d="M91 52 H128 C147 52 155 62 155 75 C155 86 148 94 138 97 C151 100 159 110 159 123 C159 139 148 148 129 148 H91 Z M109 64 H126 C134 64 138 69 138 75 C138 82 134 87 125 87 H109 Z M109 99 H128 C137 99 142 106 142 115 C142 126 136 136 127 136 H109 Z"/>
+    <path fill-rule="evenodd" transform="translate(200 0) scale(-1 1)" d="M91 52 H128 C147 52 155 62 155 75 C155 86 148 94 138 97 C151 100 159 110 159 123 C159 139 148 148 129 148 H91 Z M109 64 H126 C134 64 138 69 138 75 C138 82 134 87 125 87 H109 Z M109 99 H128 C137 99 142 106 142 115 C142 126 136 136 127 136 H109 Z"/>
+  </g>
+</svg>
