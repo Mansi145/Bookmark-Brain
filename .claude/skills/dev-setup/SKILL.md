@@ -79,6 +79,8 @@ token* in the popup. Details in the `extension` skill.
 | `FRONTEND_ORIGIN` | CORS, e.g. `http://localhost:5173` |
 | `JWT_SECRET` | signs session JWTs (`openssl rand -hex 32`) |
 | `GOOGLE_CLIENT_ID` | Google Sign-In (OAuth client, type "Web") |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in: an OAuth App from github.com/settings/developers, homepage `http://localhost:5173`, callback `http://localhost:8000/api/auth/github/callback`. Empty = the button says it isn't available |
+| `API_ORIGIN` | where the browser reaches the API (default `http://localhost:8000`), for GitHub's callback URL |
 | `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_SAMESITE` | prod only: `true` / `none` (cross-site) |
 | `WORKER_ENABLED` | run the in-process job worker (default `true`) |
 | `GOOGLE_API_KEY` | Gemini summaries, page embeddings and search (from AI Studio) |

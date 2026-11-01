@@ -1,6 +1,7 @@
 """Request/response shapes for the API (validated by FastAPI, shown in /docs)."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,6 +24,7 @@ class UserOut(ORMModel):
     email: str
     name: str | None
     avatar_url: str | None
+    providers: list[Literal["google", "github"]]  # how the account signs in, for Settings
 
 
 # --- Extension tokens -------------------------------------------------------

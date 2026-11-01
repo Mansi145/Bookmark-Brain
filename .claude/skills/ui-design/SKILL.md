@@ -105,7 +105,8 @@ tile. Colours: tile `#F4EDE4`, letters `#141516`, rules `#503931` (accent). Same
 - **Sign-in buttons**: dark (`#141516`, 1 px `#8E918F` border, white text, 52 px) with the real
   marks: Google's four-colour **G** (Google's sign-in guidelines use the G, not the Gmail logo) and
   GitHub's white Octocat. These two are filled brand marks, the one exception to stroke icons.
-  GitHub sign-in needs backend work.
+  A failed GitHub sign-in (cancelled, no verified email, unavailable) is one line of text under
+  the buttons, like Google's "Sign-in failed: …".
 - **How it works page** (`HowItWorks.dc.html`): texture header band with the top bar (How it works
   current) and an Aleo 56 px "How it works" title; then the 3 steps (step 2 = click **Connect this
   browser**), "What it does with your bookmarks" (`#features`: **your own front page** with the same mini
@@ -340,10 +341,22 @@ radius 12 px, Aleo 21 px headings:
   button in `deadFg`.
 - **No AI usage section** (owner): users aren't shown AI usage at all. The only hint is the
   free-plan note and, when it happens, the Limit reached dialog.
-- **Account** (`SettingsAccount`, `SettingsAccountDark`; Settings `section="account"`), three cards:
-  - **Your account**: 56 px avatar initial on `accent`, name, email, "Signed in with Google" (or
-    GitHub) with the provider's mark, an outlined **Sign out** button, and "Your name and picture
-    come from your Google or GitHub account. Change them there."
+- **Account** (`SettingsAccount`, `SettingsAccountLinked`, `SettingsAccountDark`; Settings
+  `section="account"`, `providers` google / github / both), four cards:
+  - **Your account**: 56 px avatar initial on `accent`, name, email, then one 13 px `ink2` line with
+    every provider linked to the account: the 14 px marks first (Google's four-colour G, then the
+    Octocat in `ink`, never white, on the card) and "Signed in with Google", "Signed in with GitHub"
+    or "Signed in with Google and GitHub" (owner: the same verified email is one account); an
+    outlined **Sign out** button, and "Your name and picture come from your Google or GitHub
+    account. Change them there."
+  - **Sign-in methods** (owner, 2026-11-01; built ahead of its board): "Either one signs you in to
+    this account.", then a row per provider like Connected browsers (`line` divider, 20 px mark in a
+    36 px box, Octocat in `ink`): name, a 13 px `ink2` line "Linked", "Linked · your only sign-in
+    method" or "Not linked", and on the right **Unlink** (text button in `deadFg`, like Revoke;
+    hidden for the only method left) or **Link**: Google's own button (`filled_black`, medium,
+    "Continue with Google") / an outlined 36 px "Link" for GitHub. A problem shows as one 13 px
+    `deadFg` line under the rows ("That GitHub account has its own Bookmark Brain account, so it
+    can't be linked here.", "Linking GitHub was cancelled.", …).
   - **Download my data**: "A JSON file with your bookmarks, folders, browsers, read states, tags and
     their summaries. It's ready in a few seconds." + **Download my data** (`ink`, download icon).
   - **Delete account** (heading in `deadFg`): "Permanently deletes your account, your bookmarks, read

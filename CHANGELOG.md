@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Search your bookmarks from the top bar, by the words in them and by what they mean, with the best 10 matches and the matched words highlighted.
 - The logo also animates while a search runs.
+- Sign in with GitHub. It opens the same account as Google when the verified email is the same, and Settings → Account links or unlinks either one.
 
 ## [0.2.0] - 2026-10-27
 

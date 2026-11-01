@@ -1,4 +1,8 @@
-// Small text helpers shared by the feed rows, search and the detail panel.
+// Small text helpers shared by the feed rows, search, the detail panel and Settings.
+
+import type { Provider } from '../api/types'
+
+export const PROVIDER_NAMES: Record<Provider, string> = { google: 'Google', github: 'GitHub' }
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
 

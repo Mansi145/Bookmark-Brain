@@ -17,7 +17,7 @@ It's a personal learning project for integrating AI agents into a real full-stac
 | 4 | "Ask your bookmarks" chat agent (LangGraph) | Planned |
 | 5–7 | Auto-tags, regular dead-link re-checks, weekly digest | Planned (Dead links, Find archived copy and read / unread are already in) |
 | 8 | Deploy (Render + Neon + Vercel), CI | Planned |
-| UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done (GitHub sign-in planned) |
+| UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done |
 
 The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](docs/PLAN.md).
 
@@ -68,7 +68,7 @@ bookmark_brain/
 │   │   ├── db.py             async engine + session dependency
 │   │   ├── models.py         users, api_tokens, documents, bookmarks, bookmark_sources, jobs, ai_usage
 │   │   ├── schemas.py        request/response models
-│   │   ├── auth/             Google token check, session JWTs, access tokens
+│   │   ├── auth/             Google token check, GitHub sign-in, session JWTs, access tokens
 │   │   ├── api/              routes: health, auth, tokens, sync, bookmarks, search, usage, account
 │   │   ├── services/         URL normalisation, sync/merge, safe page fetcher, text extraction, sign-in
 │   │   │                     detection, Wayback Machine, site icons, preview images, daily limit, email,
@@ -133,6 +133,8 @@ The API runs at http://localhost:8000, with the background job worker running in
 | `FRONTEND_ORIGIN` | always | `http://localhost:5173` |
 | `JWT_SECRET` | sign-in | generate with `openssl rand -hex 32` |
 | `GOOGLE_CLIENT_ID` | sign-in | your OAuth client ID |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in | a GitHub OAuth App (github.com/settings/developers) with the callback URL `http://localhost:8000/api/auth/github/callback`; leave empty and the GitHub button says it isn't available |
+| `API_ORIGIN` | GitHub sign-in | where the browser reaches the API, `http://localhost:8000` |
 | `GOOGLE_API_KEY` | summaries, search | Gemini key from Google AI Studio (the first two models in the chain, and embeddings) |
 | `OPENROUTER_API_KEY` | optional | OpenRouter's free models, next in the chain |
 | `NVIDIA_API_KEY` | optional | NVIDIA NIM (hosts DeepSeek for free), after OpenRouter |
@@ -214,6 +216,11 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET | `/health` | none | liveness check |
 | GET | `/health/db` | none | database + pgvector check |
 | POST | `/api/auth/google` | none | exchange a Google ID token for a session cookie |
+| GET | `/api/auth/github?next=…` | none | start GitHub sign-in (redirects to GitHub) |
+| GET | `/api/auth/github/callback` | none | GitHub sends the browser back here; sets the session cookie (or, when linking, adds GitHub to the account) and returns to `next` |
+| POST | `/api/auth/google/link` | cookie only | Settings: add a Google account (its ID token) to the signed-in account |
+| GET | `/api/auth/github/link?next=…` | cookie only | Settings: start linking GitHub to the signed-in account (redirects to GitHub) |
+| DELETE | `/api/auth/{google,github}/link` | cookie only | Settings: unlink a sign-in method (never the last one) |
 | POST | `/api/auth/logout` | none | clear the session cookie |
 | GET | `/api/me` | cookie or token | current user |
 | GET / POST | `/api/tokens` | cookie or token | list / create extension tokens |

@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     # Auth (Phase 1)
     jwt_secret: str = ""
     google_client_id: str = ""
+    # GitHub sign-in (app/auth/github.py): an OAuth App from github.com/settings/developers.
+    # Its "Authorization callback URL" must be API_ORIGIN + /api/auth/github/callback, and GitHub
+    # allows one callback per app, so production needs an OAuth App of its own. Leave these empty
+    # and the GitHub button says sign-in with GitHub isn't available.
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    # Where the browser reaches this API, for that callback URL.
+    api_origin: str = "http://localhost:8000"
     session_days: int = 30
     # Local dev: frontend and API are both on localhost, so Lax + non-secure works.
     # Production (vercel.app -> onrender.com is cross-site): set Secure=true, SameSite=none.

@@ -19,6 +19,7 @@ from datetime import date, datetime
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     Computed,
     Date,
     DateTime,
@@ -44,13 +45,27 @@ class TimestampMixin:
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "google_sub IS NOT NULL OR github_id IS NOT NULL", name="ck_users_has_provider"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    # Google's stable account id ("sub" claim). Emails can change; this can't.
-    google_sub: Mapped[str] = mapped_column(String(255), unique=True)
+    # How the account signs in: Google's stable account id ("sub" claim) and/or GitHub's numeric
+    # user id. Emails can change; these can't. One account can have both (same verified email,
+    # owner's decision), and always has at least one.
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True)
+    github_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     email: Mapped[str] = mapped_column(String(320))
     name: Mapped[str | None] = mapped_column(String(255))
     avatar_url: Mapped[str | None] = mapped_column(Text)
+
+    @property
+    def providers(self) -> list[str]:
+        """How this account can sign in, e.g. ["google", "github"] (shown in Settings)."""
+        linked = (("google", self.google_sub), ("github", self.github_id))
+        return [name for name, account_id in linked if account_id is not None]
 
 
 class ApiToken(TimestampMixin, Base):

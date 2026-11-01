@@ -1,10 +1,13 @@
 // Mirrors backend/app/schemas.py. Keep the two in sync.
 
+export type Provider = 'google' | 'github'
+
 export type User = {
   id: number
   email: string
   name: string | null
   avatar_url: string | null
+  providers: Provider[] // how the account signs in, for Settings
 }
 
 export type ApiToken = {

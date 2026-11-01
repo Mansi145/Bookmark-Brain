@@ -11,7 +11,7 @@ This is a learning project to understand how AI agents are integrated into real 
 | 2 | Page fetching + AI summaries | ✅ Job queue, safe fetcher, `fetch_page` + `find_archive` (article text, reading time, Needs sign-in and Dead links sections), on-demand summaries (`ai/llm.py`, `summarise` job, daily limit, Limit reached dialog + maintainer email) and the bookmark detail panel |
 | 3 | Hybrid search | Built: embeddings, search API and the search screens. Results aren't right yet (owner, 2026-11-01): fixing them is the first item under Later |
 | 4–8 | Agent, tags, dead links, digest, deploy | Planned |
-| UI | Apply the final design (below) to the React app; GitHub sign-in | ✅ Done: sign-up, How it works, Connect and error pages, the newspaper feed with its sections and detail panel, warm charcoal dark mode, account menu, Settings (Browsers, Account), free-plan note, Limit reached dialog, logo animations. Designed, built with their phases: Lens (3), Ask and Conversation (4), Digest (7). GitHub sign-in planned (the button is shown but disabled) |
+| UI | Apply the final design (below) to the React app; GitHub sign-in | ✅ Done: sign-up, How it works, Connect and error pages, the newspaper feed with its sections and detail panel, warm charcoal dark mode, account menu, Settings (Browsers, Account), free-plan note, Limit reached dialog, logo animations. Designed, built with their phases: Lens (3), Ask and Conversation (4), Digest (7). GitHub sign-in built too |
 
 ## Decisions (and why)
 | Area | Choice | Why |
@@ -29,7 +29,7 @@ This is a learning project to understand how AI agents are integrated into real 
 | Search results | **At most 10**, best first, no Show more. Everything the user saved is searched (read stories, Needs sign-in, Dead links), and the sidebar's browser and folder filters narrow it (tags too, once they exist) | Owner's decisions (2026-10-30). 10 rather than 20 keeps the noise down while there's no cutoff, since meaning search always fills every slot. The count reads "Top 10 matches" when more matched, otherwise "N bookmarks". No results gets an empty card with tips; search never says how it matched, so keyword-only results look like any others (owner, 2026-11-01); a failed search gets "Couldn't search right now" with Try again inside the results sheet. The search field gets a clear × once there's text (Escape clears too, back to the feed), and results look the same whatever they matched on: no folder label on a folder match. |
 | Search cost | **Searches don't count toward the daily AI limit** (owner); instead a per-user throttle the user never sees (owner: no message, not even Couldn't search or the Limit reached dialog), a short-lived cache of query embeddings, and the keyword fallback | A search is one embedding of the query (a few words, free tier, no text generated) plus two database queries; the ranking itself only compares stored numbers. Searching as you type (after a 0.4 s pause, once there are 3+ characters; Enter searches straight away) could otherwise make several calls per word, so the cache and the cap keep it cheap. |
 | Frontend | **React + Vite + TypeScript**, TanStack Query, Tailwind v4, React Router | Industry standard; handles streaming chat UI well. |
-| Auth | **Google Sign-In**; the backend verifies the ID token and issues its own JWT in an httpOnly cookie. **GitHub sign-in** to be added (the landing page design has both buttons) | The extension uses a personal access token (`bb_pat_…`, only a SHA-256 hash is stored). |
+| Auth | **Google Sign-In** and **GitHub sign-in**, both ending in our own JWT in an httpOnly cookie. Google: the backend verifies Google's ID token. GitHub: OAuth's authorization-code flow on the server (`app/auth/github.py`) with a random `state` in a 10-minute cookie, asking only for `read:user user:email`. **The same verified email is one account** (owner, 2026-11-01): Google signs in only verified emails and GitHub's verified primary email is required, so nobody can claim an account by typing its address. **Settings → Account → Sign-in methods** links or unlinks either one (owner, 2026-11-01): linking needs the web app session and adds the provider even with another email (signed in here and approved there proves it's one person), a provider account that has its own account can't be linked, and the last method can't be unlinked | The extension uses a personal access token (`bb_pat_…`, only a SHA-256 hash is stored). The GitHub flow runs on the server so the app's secret never reaches the browser, and the state check stops another site signing someone in to an account of its choosing. Sign-in returns to the page it started on (only a path in our own app), so one-click connect carries on after it. |
 | Hosting | **Render** (API) + **Neon** (Postgres + pgvector) + **Vercel** (frontend). Free tier; cron-job.org pings `/health` every 10 min to stop Render sleeping | $0. The ping avoids the 30–50s cold start and keeps the background worker running. |
 | Background jobs | **`jobs` table + in-process asyncio worker** (4 loops, `SELECT … FOR UPDATE SKIP LOCKED`), started from the FastAPI lifespan | No Redis or Celery needed (Render's free tier has no worker service). Jobs survive restarts; retries with back-off (30 s, 2 min) then `failed` after 3 attempts; a job stuck `running` for 10 min is taken over. Slow work never runs inside a request: it would make sync take minutes, hit request time limits, and let one slow site break everything. |
 | Fetching pages | **`app/services/fetch.py`**: one HTTP client that refuses private/loopback/link-local addresses on every request and redirect | The server fetches URLs users choose, so without this a bookmark like `http://localhost:5432` or a cloud metadata address could make it probe its own network (SSRF). |
@@ -76,14 +76,14 @@ bookmark_brain/
 ├── docker-compose.yml           local pgvector/pgvector:pg16
 ├── docs/PLAN.md                 this file
 ├── backend/
-│   ├── alembic/versions/        0001 pgvector … 0009 (jobs, page content, summaries, preview images, limit notices, search)
+│   ├── alembic/versions/        0001 pgvector … 0010 (jobs, page content, summaries, preview images, limit notices, search, GitHub sign-in)
 │   ├── scripts/                 explore_search.py (dev only: explains how search ranks the local pages)
 │   └── app/
 │       ├── main.py              FastAPI app, CORS, routers, lifespan starts the worker
 │       ├── config.py            pydantic-settings (env vars)
 │       ├── db.py, models.py     engine/session, ORM models
 │       ├── schemas.py           request/response models
-│       ├── auth/                Google token check, session JWTs, PATs
+│       ├── auth/                Google token check, GitHub sign-in, session JWTs, PATs
 │       ├── api/                 health, auth, tokens, sync, bookmarks, search, usage, account (later: chat, digest)
 │       ├── services/            urls, sync, fetch (safe page fetcher), extract, access, archive, icons, preview,
 │       │                        usage (daily limit), mail (Resend), search (hybrid search, query embeddings)
@@ -106,7 +106,7 @@ bookmark_brain/
 
 ## Data model
 Built so far:
-- `users` (google_sub, email, name, avatar_url)
+- `users` (google_sub and/or github_id, at least one; email, name, avatar_url)
 - `api_tokens` (user_id, name, token_hash, prefix, last_used_at): PATs for the extension
 - `documents` (normalized_url unique, url, site, status [pending/fetched/summarised/failed/dead], title, description, content_text, word_count, http_status, fetched_at, content_source [page/archive], archive_status, archive_url, archived_on, access [login/paywall], icon_url, image_url; summary, key_points jsonb, summary_status, summary_source, summary_model, summarised_at; embedding vector(768), embedding_model, embedded_at; `tsv`, a generated tsvector: title (A), description + summary + key points (B), the first 100,000 characters of page text (C)). **Shared across users**, so each URL is fetched, summarised and embedded once. Indexes: GIN on `tsv`, HNSW (cosine) on `embedding`.
 - `bookmarks` (user_id, document_id, title, added_at, read_state [unread/read], deleted_at). Unique on (user_id, document_id). Soft-deleted when no browser has it any more.

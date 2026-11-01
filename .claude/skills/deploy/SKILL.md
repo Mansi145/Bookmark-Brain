@@ -20,6 +20,9 @@ deploying.
 - Health check path: `/health` (must be cheap: no DB or LLM calls).
 - Env vars: everything in the `dev-setup` skill, with prod values; `FRONTEND_ORIGIN=https://<app>.vercel.app`,
   `SESSION_COOKIE_SECURE=true`, `SESSION_COOKIE_SAMESITE=none`, `WORKER_ENABLED=true`.
+  GitHub sign-in needs **its own production OAuth App** (GitHub allows one callback URL per app):
+  callback `https://<api>.onrender.com/api/auth/github/callback`, then `GITHUB_CLIENT_ID`,
+  `GITHUB_CLIENT_SECRET` and `API_ORIGIN=https://<api>.onrender.com`.
   `RESEND_API_KEY` + `MAINTAINER_EMAIL` turn on the Limit reached email (without them the button
   answers 503). The OpenRouter / NVIDIA / Groq keys are optional fallbacks. **Never set
   `DEV_TOOLS`** in production: it lets any user reset their own daily AI limit.

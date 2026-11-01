@@ -4,12 +4,16 @@ import { useNavigate } from 'react-router'
 import { api, API_URL } from '../api/client'
 import type { Account, User } from '../api/types'
 import { useSignOut } from '../hooks/useSignOut'
+import { PROVIDER_NAMES } from '../lib/format'
 import Avatar from './Avatar'
+import { GitHubMark, GoogleMark } from './ProviderMarks'
+import SignInMethods from './SignInMethods'
 
-// Settings → Account (design boards SettingsAccount, SettingsAccountDark, SettingsAccountDelete):
-// Your account (who's signed in, Sign out), Download my data (a JSON file) and Delete account,
-// which asks for DELETE to be typed. Both account actions only work with the web app's session
-// cookie, never an extension token (backend app/api/account.py).
+// Settings → Account (design boards SettingsAccount, SettingsAccountLinked, SettingsAccountDark,
+// SettingsAccountDelete): Your account (who's signed in, Sign out), Sign-in methods (link or unlink
+// Google and GitHub, SignInMethods), Download my data (a JSON file) and Delete account, which asks
+// for DELETE to be typed. These account actions only work with the web app's session cookie, never
+// an extension token (backend app/api/account.py and app/api/auth.py).
 
 // A plain link: the browser downloads it with the session cookie (the server sends it as an
 // attachment), so there's nothing to build or store on our side.
@@ -38,10 +42,15 @@ export default function AccountSettings({ user }: { user: User }) {
           <div className="min-w-0 flex-[1_1_220px]">
             <div className="text-base font-semibold">{user.name ?? user.email}</div>
             <div className="truncate text-sm text-ink2">{user.email}</div>
-            {/* Google is the only sign-in so far; GitHub joins when the backend supports it. */}
+            {/* Every provider linked to the account (owner): either button signs in. */}
             <div className="mt-1 flex items-center gap-1.5 text-[13px] text-ink2">
-              <GoogleMark />
-              Signed in with Google
+              {user.providers.includes('google') && <GoogleMark />}
+              {user.providers.includes('github') && (
+                <span className="text-ink">
+                  <GitHubMark />
+                </span>
+              )}
+              Signed in with {user.providers.map((p) => PROVIDER_NAMES[p]).join(' and ')}
             </div>
           </div>
           <button
@@ -57,6 +66,8 @@ export default function AccountSettings({ user }: { user: User }) {
           Your name and picture come from your Google or GitHub account. Change them there.
         </p>
       </section>
+
+      <SignInMethods user={user} />
 
       <section aria-labelledby="export-title" className={card}>
         <h2 id="export-title" className={heading}>
@@ -233,27 +244,4 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
 
 function plural(n: number, word: string) {
   return `${n} ${n === 1 ? word : `${word}s`}`
-}
-
-function GoogleMark() {
-  return (
-    <svg aria-hidden width="14" height="14" viewBox="0 0 48 48" className="flex-none">
-      <path
-        fill="#EA4335"
-        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-      />
-      <path
-        fill="#4285F4"
-        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-      />
-      <path
-        fill="#34A853"
-        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-      />
-    </svg>
-  )
 }
