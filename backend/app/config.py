@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     nvidia_model: str = "deepseek-ai/deepseek-v4.1-flash"
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
+    # Embeddings for search (llm.get_embedder): Gemini only, same key. There's no fallback
+    # provider, because vectors from different models can't be compared: when this model is
+    # down, search uses keywords alone. Changing it means re-embedding every page.
+    gemini_embedding_model: str = "gemini-embedding-2"
     # Summaries a user may start per UTC day. The free quotas are per API key, so all users
     # share them; this stops one person from using up the day.
     ai_daily_limit_per_user: int = 50

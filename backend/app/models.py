@@ -16,8 +16,10 @@ expensive AI work done in later phases is cached once per URL.
 import enum
 from datetime import date, datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    Computed,
     Date,
     DateTime,
     Enum,
@@ -30,7 +32,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -74,8 +76,36 @@ class DocumentStatus(enum.StrEnum):
     dead = "dead"  # the page is gone (404 / 410)
 
 
+# How many numbers each page's embedding has. gemini-embedding-2 makes 3,072 by default; 768 is
+# Google's recommended smaller size: a quarter of the storage and faster comparisons for almost the
+# same quality. The model is asked for exactly this many (app/ai/llm.py), and changing it needs a
+# migration and re-embedding every page.
+EMBEDDING_DIMENSIONS = 768
+
+# Keyword search: the page's words, weighted so a match in the title (A) ranks above one in the
+# description, summary or key points (B), which ranks above one in the page text (C). The page
+# text is capped because a tsvector must stay under 1 MB.
+DOCUMENT_TSV = """
+setweight(to_tsvector('english', coalesce(title, '')), 'A')
+|| setweight(to_tsvector('english', coalesce(description, '') || ' ' || coalesce(summary, '')
+    || ' ' || coalesce(key_points::text, '')), 'B')
+|| setweight(to_tsvector('english', left(coalesce(content_text, ''), 100000)), 'C')
+"""
+
+
 class Document(TimestampMixin, Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("ix_documents_tsv", "tsv", postgresql_using="gin"),
+        # HNSW: a graph index that finds the nearest vectors without comparing every row.
+        # vector_cosine_ops makes it serve the cosine distance operator (<=>).
+        Index(
+            "ix_documents_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     normalized_url: Mapped[str] = mapped_column(Text, unique=True)
@@ -121,6 +151,21 @@ class Document(TimestampMixin, Base):
     summary_source: Mapped[str | None] = mapped_column(String(16))
     summary_model: Mapped[str | None] = mapped_column(String(64))  # which model answered
     summarised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Meaning search: the page's embedding (app/ai/embedding.py decides which text), written by
+    # the embed_pages job and shared by everyone who saved this URL. Vectors from different
+    # models can't be compared, so the model is recorded. embedded_at null = waiting for the
+    # job; set with no embedding = nothing worth embedding (a sign-in page).
+    # Deferred: loaded only when asked for, so the feed doesn't carry 768 numbers per story.
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIMENSIONS), deferred=True
+    )
+    embedding_model: Mapped[str | None] = mapped_column(String(64))
+    embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Keyword search (DOCUMENT_TSV): Postgres keeps it up to date whenever the row changes.
+    tsv: Mapped[str] = mapped_column(
+        TSVECTOR, Computed(DOCUMENT_TSV, persisted=True), deferred=True
+    )
 
 
 class ReadState(enum.StrEnum):

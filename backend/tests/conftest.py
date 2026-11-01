@@ -4,6 +4,7 @@ Requires the docker-compose database to be running (`docker compose up -d db`).
 """
 
 import os
+import random
 
 TEST_DB = "bookmark_brain_test"
 # Must be set before the app is imported: settings and the engine read it at import.
@@ -19,10 +20,11 @@ from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
+from app.ai import llm  # noqa: E402
 from app.auth.security import SESSION_COOKIE, create_session_token  # noqa: E402
 from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import User  # noqa: E402
+from app.models import EMBEDDING_DIMENSIONS, User  # noqa: E402
 
 # NullPool: open a fresh connection each time. TestClient runs the app in its own
 # event loop, and pooled asyncpg connections can't be shared across loops.
@@ -51,6 +53,38 @@ async def _create_schema():
         await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
+
+
+class FakeEmbedder:
+    """Stands in for llm.get_embedder(): the same text always gives the same vector, offline.
+
+    Records each request's texts in `calls`; set `error` to make the next requests fail.
+    """
+
+    model = "fake-embedding"
+
+    def __init__(self):
+        self.calls: list[list[str]] = []
+        self.error: Exception | None = None
+
+    async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(texts)
+        if self.error:
+            raise self.error
+        return [self._vector(text) for text in texts]
+
+    @staticmethod
+    def _vector(text: str) -> list[float]:
+        numbers = random.Random(text)  # seeded by the text, so it's always the same vector
+        return [numbers.uniform(-1, 1) for _ in range(EMBEDDING_DIMENSIONS)]
+
+
+@pytest.fixture(autouse=True)
+def fake_embedder(monkeypatch) -> FakeEmbedder:
+    """Every test: fetching a page queues embeddings, and .env may hold a real Google key."""
+    fake = FakeEmbedder()
+    monkeypatch.setattr(llm, "get_embedder", lambda: fake)
+    return fake
 
 
 @pytest.fixture(autouse=True)

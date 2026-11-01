@@ -13,7 +13,8 @@ Read a board's file through the Artifact tool when you need exact markup. Its pa
 - **Home**: `Login` (sign-up), `HowItWorks`, `Main` (the feed; every feed board imports it), the
   feed sections, empty states, `RowStates`, `FeedLoading`, `Ask`, `AskEmpty`, `Digest`,
   `DigestDark`, `FeedSearch`, `FeedDetail`, `FeedDetailUnsummarised`, `FeedFirstRun`, `MarkAsRead`,
-  `FeedPhone`, `FeedPhoneDark`.
+  `FeedPhone`, `FeedPhoneDark`, and the search states (`FeedSearchLoading`, `FeedSearchEmpty`,
+  `FeedSearchKeyword`, `FeedSearchError`, each with a `…Dark` board, plus `FeedSearchDark`).
 - **Components**: `Texture`, `LogoFinal`, `LogoAnimations`, plus the previous logo and the logo tests.
 - **Other screens**: `FeedDark`, Settings (Browsers, Account, delete dialog, dark), `AccountMenu`,
   the popup states, Connect and error pages (light and dark), `LimitDialog`.
@@ -128,7 +129,9 @@ newspaper front page further down ("Newspaper feed"); the bullets here cover the
 states every story shares.
 - **Top bar** on the dark texture, white text: small logo + "Bookmark Brain" (Aleo 21 px); a dark
   search field (`rgba(23,24,26,.55)`, 1 px `rgba(255,255,255,.18)`, "Search by meaning or keyword…",
-  `/` shortcut); **tabs Feed · Ask · Digest** (Settings is not a tab any more: owner, 2026-10-27; it's in the account menu) (owner: the sections are NOT in the top nav; the
+  `/` shortcut hint, hidden on phones; once there's text the hint becomes a **clear ×** button
+  (36 px target, 24 px `rgba(255,255,255,.16)` circle; owner, 2026-10-30) that goes back to the feed,
+  as Escape does; the field wraps to its own full-width row on phones); **tabs Feed · Ask · Digest** (Settings is not a tab any more: owner, 2026-10-27; it's in the account menu) (owner: the sections are NOT in the top nav; the
   current tab on `rgba(255,255,255,.14)`, weight 600); a quiet **How it works** link with a
   help icon (to the How it works page); a white round account button (the user's initial).
   **No theme button in the top bar any more** (owner, 2026-10-27): the light / dark switch lives in
@@ -207,10 +210,12 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   "The site's own description…" line and the Summarise button, and there's no Re-summarise. Tags (outlined pills with remove ×; AI
   suggestions dashed with ✓ / ×; "Add tag"); Details (browsers/folders, full URL).
 - **Tags**: a "Tags" group in the feed sidebar with counts, and in the detail panel. Not on rows.
-- **Search results** (`FeedSearch`; Main `section="search"`): replace the feed in place. Query stays
-  in the top-bar field; title "Results for “…”", line "5 bookmarks · matched by keyword and by meaning
-  · Clear search"; one "Best matches" band, ranked rows; matching words in summaries highlighted as
-  `<mark>` on `accent` with white text. Feed views bar hidden; sidebar filters still apply.
+- **Search results** (`FeedSearch` and the search-state boards; Main `section="search"` plus a
+  `search` setting: results / searching / none / keyword / error): replace the feed in place. Query
+  stays in the top-bar field; title "Search results", line "Top 10 matches · matched by keyword and
+  by meaning · Clear search"; matching words in summaries highlighted as `<mark>` on `accent` with
+  white text. Feed views bar hidden; sidebar filters still apply. The sheet itself and every state
+  are under **Search** in the newspaper feed section below.
 - **First run** (`FeedFirstRun`): one `surface` card: bookmark icon on `accent`, "Connect your first
   browser", two numbered steps, **Get the extension** (`ink`) + **Connect by hand** (to Settings).
 - **Ask** (`Ask`, `AskEmpty`): three panels. Left: **New chat** (`ink`) + Recent chats (current on
@@ -297,8 +302,34 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
     couldn't read / needs sign-in / subscribers only / site's own description / read; dead link not
     looked up / checking / copy found / found and summarised / no copy / couldn't reach. A state label
     pill sits above each example only on that board. Daily limit → the Limit reached dialog.
-  - **Search** (`FeedSearch`): one sheet, masthead is the query in quotes, best match as a second-size
-    story beside two briefs, then standard results; matched words on `accent` with white text.
+  - **Search** (`FeedSearch`; owner, 2026-10-30): one sheet; the masthead is how it matched · the
+    query in quotes · the count. Best match as a second-size story beside two briefs, then standard
+    results in ruled columns; results include read stories (faded), subscribers-only and dead links,
+    each with its usual state line. Matched words on `accent` with white text.
+    - **At most 10 results**, best first, no Show more or pager (owner). The server merges the top 50
+      keyword and top 50 meaning matches and returns the best 10 (meaning search always fills every
+      slot, so a small cap keeps weak matches out); when more than 10 matched the count reads
+      **"Top 10 matches"**, otherwise "N bookmarks".
+    - **Searching** (`FeedSearchLoading`): masthead "Searching your bookmarks…" (`role="status"`),
+      the query, a skeleton count; skeleton stories in the results' shape (pulsing, still with
+      reduced motion). The logo plays Lens meanwhile.
+    - **No results** (`FeedSearchEmpty`, `FeedSearchEmptyDark`): "0 bookmarks"; centred: magnifier
+      on a 52 px `accent` circle, "Nothing matched “…”" (Aleo 21 px), "Try different words, or fewer
+      of them. Search looks through the titles, summaries and page text of everything you've saved,
+      read or not." + "A browser, folder or tag picked in the sidebar narrows the search too." +
+      outlined **Clear search** (40 px).
+    - **Keyword only** (`FeedSearchKeyword`): when search by meaning is unavailable, results come
+      from keywords alone and the masthead quietly says "Matched by keyword" (header line "8
+      bookmarks · matched by keyword"); no warning (owner).
+    - **Couldn't search** (`FeedSearchError`): the request failed. Masthead sides empty; centred:
+      "!" on a 52 px `accent` circle, "Couldn't search right now", "That didn't work on our side.
+      Your bookmarks are safe, so try again in a moment.", **Try again** (`ink`, `onInk` text,
+      refresh icon, 40 px) + outlined **Clear search**. Header line "Search didn't finish".
+    - **Not shown** (owner, 2026-10-30): no state for searching too fast (the backend throttles or
+      rate-limits instead, so the user never sees it, and never the Limit reached dialog); no folder
+      label on results that matched through their folder name.
+    - Every state has a dark board (`FeedSearchDark`, `FeedSearchLoadingDark`, `FeedSearchEmptyDark`,
+      `FeedSearchKeywordDark`, `FeedSearchErrorDark`), built from the dark tokens like `FeedDark`.
   - **Loading** (`FeedLoading`): the front page's shape in `skeleton` bars (pulsing, still with
     reduced motion) + "Loading your front page…".
   - **Phone** (`FeedPhone`, `FeedPhoneDark`, 390 px): every column stacks into one, rules become

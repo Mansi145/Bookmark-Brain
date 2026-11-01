@@ -26,7 +26,19 @@ All model access goes through `backend/app/ai/llm.py`:
   `curl -s https://integrate.api.nvidia.com/v1/models`.
   Free-tier facts learned the hard way: `gemini-3.5-flash` returned 503 "high demand" most of the
   time; Groq allows only 8,000 tokens a minute, so article input is capped at 12,000 characters.
-- `get_embedder()` returns a Gemini embeddings model. **Never mix embedding models**: vectors from different models aren't comparable. Changing the model means re-embedding every document. Store the model name with the vector.
+- `get_embedder()` returns `GeminiEmbeddings` (`GEMINI_EMBEDDING_MODEL`, default `gemini-embedding-2`,
+  `EMBEDDING_DIMENSIONS = 768` in `models.py`). **Never mix embedding models**: vectors from
+  different models aren't comparable, so there's no fallback provider (search falls back to
+  keywords) and changing the model means re-embedding every document; `embedding_model` is stored
+  with each vector. Our own class, not LangChain's `GoogleGenerativeAIEmbeddings`: that one always
+  sends `task_type`, which gemini-embedding-2 doesn't accept. This model wants the task in the
+  text: pages as `title: … | text: …` (`llm.document_for_embedding`), queries as
+  `task: search result | query: …` (`embed_query` adds it). Each text goes in its own `Content`,
+  or the model returns one combined vector. A 429 is raised as `llm.RateLimited`.
+- What text each page is embedded from lives in `ai/embedding.py` (summary once there is one, else
+  title + description + the opening 6,000 characters; sign-in pages none; the saved bookmark title
+  when a page has only a title). `backend/scripts/explore_embeddings.py` tries it on the local
+  database with real queries (dev only, cached in `backend/.cache/`).
 
 Don't create `ChatGoogleGenerativeAI` or other clients anywhere else. Model names come from config, not hard-coded strings.
 
@@ -69,7 +81,9 @@ Tests must never hit real APIs. Monkeypatch `app.ai.llm.get_structured_model` (c
 `llm.get_structured_model`, so the patch takes effect) with a fake that returns a
 `RunnableLambda` producing `{"raw": AIMessage(...), "parsed": Schema(...), "parsing_error": None}`;
 see `FakeModel` in `tests/test_summaries.py`. For free-text models, `FakeListChatModel` /
-`GenericFakeChatModel` work by overriding `get_chat_model`.
+`GenericFakeChatModel` work by overriding `get_chat_model`. Embeddings are faked for **every**
+test by conftest's autouse `fake_embedder` (fetching a page queues an embedding, and `.env` may
+hold a real key); it records each request's texts in `calls`, and setting `error` makes requests fail.
 
 ## Observability
 With `LANGSMITH_TRACING=true`, every chain/agent run shows up in LangSmith. Add `run_name` and `metadata={"user_id": ..., "doc_id": ...}` in `config` so traces are easy to find.

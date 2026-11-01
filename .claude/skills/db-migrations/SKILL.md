@@ -16,8 +16,8 @@ uv run alembic downgrade -1 && uv run alembic upgrade head   # check downgrade w
 uv run alembic check                                         # models and migrations agree
 uv run pytest -q                                             # tests build the schema from the models
 ```
-Use `--rev-id` with the next number after the newest file in `alembic/versions/` (`0009` after
-`0008_limit_notices.py`) so files stay ordered: `0001_…`, `0002_…`.
+Use `--rev-id` with the next number after the newest file in `alembic/versions/` (`0010` after
+`0009_search.py`) so files stay ordered: `0001_…`, `0002_…`.
 Never edit a migration that has already run on Neon; write a new one.
 Changing a migration that has only run locally: first `alembic downgrade -1` **with the old file in
 place** (its `downgrade()` knows what to undo), then edit/replace the file and `upgrade head`.
@@ -30,6 +30,10 @@ Editing first leaves the local DB with columns the new file doesn't know about.
 - **tsvector**: use a generated column, written by hand:
   `tsv tsvector GENERATED ALWAYS AS (setweight(to_tsvector('english', coalesce(title,'')),'A') || setweight(to_tsvector('english', coalesce(summary,'')),'B') || setweight(to_tsvector('english', coalesce(content_text,'')),'C')) STORED`
   plus `CREATE INDEX … USING gin (tsv)`.
+- **Generated columns and HNSW indexes**: `0009_search.py` shows both. Declare them in the model
+  too (`Computed(..., persisted=True)`, `Index(..., postgresql_using="hnsw", postgresql_ops=...)`)
+  so the tests' `create_all` builds them and `alembic check` stays quiet. The migration keeps its
+  own copy of the expression: migrations must not change when the model does.
 - Enum changes (status / read_state) are not detected; add `ALTER TYPE … ADD VALUE` manually.
 - **Downgrades leave enum types behind**: dropping a table doesn't drop its Postgres enum, so add
   `op.execute("DROP TYPE <name>")` after `drop_table` (e.g. `job_status` in `0003`), or the next
