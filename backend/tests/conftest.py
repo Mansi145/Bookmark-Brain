@@ -58,13 +58,15 @@ async def _create_schema():
 class FakeEmbedder:
     """Stands in for llm.get_embedder(): the same text always gives the same vector, offline.
 
-    Records each request's texts in `calls`; set `error` to make the next requests fail.
+    Records each request's texts in `calls` (pages) and `queries` (searches); set `error` to
+    make the next requests fail.
     """
 
     model = "fake-embedding"
 
     def __init__(self):
         self.calls: list[list[str]] = []
+        self.queries: list[str] = []
         self.error: Exception | None = None
 
     async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
@@ -72,6 +74,12 @@ class FakeEmbedder:
         if self.error:
             raise self.error
         return [self._vector(text) for text in texts]
+
+    async def aembed_query(self, text: str) -> list[float]:
+        self.queries.append(text)
+        if self.error:
+            raise self.error
+        return self._vector(text)
 
     @staticmethod
     def _vector(text: str) -> list[float]:

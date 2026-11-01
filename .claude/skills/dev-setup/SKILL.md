@@ -81,9 +81,10 @@ token* in the popup. Details in the `extension` skill.
 | `GOOGLE_CLIENT_ID` | Google Sign-In (OAuth client, type "Web") |
 | `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_SAMESITE` | prod only: `true` / `none` (cross-site) |
 | `WORKER_ENABLED` | run the in-process job worker (default `true`) |
-| `GOOGLE_API_KEY` | Gemini chat + embeddings (from AI Studio), Phase 2+ |
+| `GOOGLE_API_KEY` | Gemini summaries, page embeddings and search (from AI Studio) |
 | `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `GROQ_API_KEY` | the rest of the summary fallback chain (OpenRouter's free models, NVIDIA NIM, Groq); each is optional, a provider without a key is skipped |
 | `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `GROQ_MODEL` | override the models (defaults in `app/config.py`; see the `llm-patterns` skill) |
+| `GEMINI_EMBEDDING_MODEL` | the embedding model (default `gemini-embedding-2`); changing it means re-embedding every page |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT` | agent/chain traces |
 | `AI_DAILY_LIMIT_PER_USER` | summaries per user per UTC day (default 50) |
 | `RESEND_API_KEY`, `MAINTAINER_EMAIL`, `EMAIL_FROM` | "Notify the maintainer" emails (Resend, free plan); optional, the button answers 503 without them. Without a verified domain `MAINTAINER_EMAIL` must be your Resend sign-up address |

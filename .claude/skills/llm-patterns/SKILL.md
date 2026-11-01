@@ -37,8 +37,9 @@ All model access goes through `backend/app/ai/llm.py`:
   or the model returns one combined vector. A 429 is raised as `llm.RateLimited`.
 - What text each page is embedded from lives in `ai/embedding.py` (summary once there is one, else
   title + description + the opening 6,000 characters; sign-in pages none; the saved bookmark title
-  when a page has only a title). `backend/scripts/explore_embeddings.py` tries it on the local
-  database with real queries (dev only, cached in `backend/.cache/`).
+  when a page has only a title). `backend/scripts/explore_search.py` runs the real search on
+  the local database and explains each result's keyword place, meaning similarity and merged score
+  (dev only; it embeds only the queries).
 
 Don't create `ChatGoogleGenerativeAI` or other clients anywhere else. Model names come from config, not hard-coded strings.
 
@@ -51,8 +52,14 @@ When code needs fields back, use `model.with_structured_output(PydanticSchema)` 
 
 ## Cost & quota rules (free tiers!)
 1. **Cache per document**: summaries, key points, tags and embeddings are stored on `documents` (shared across users). Check the cache before calling the model.
-2. **Background, not request path**: summarise/embed/tag run as `jobs`, never inside an HTTP handler. Only chat and explicit "re-summarise" actions call the LLM on request, and both check `AI_DAILY_LIMIT_PER_USER`.
-3. **Truncate input** to a token budget before sending (long articles: take the beginning plus headings).
+2. **Background, not request path**: summaries, page embeddings and tags run as `jobs`, never inside
+   an HTTP handler (Summarise and Re-summarise queue a job after checking
+   `AI_DAILY_LIMIT_PER_USER`). Two things call a model inside a request: a **search** embeds its
+   query, always through `services/search.QueryEmbeddings` (a 5-minute cache and a per-user
+   throttle of 20 new queries a minute; over it, or on any embedding error, keyword matches only),
+   never `get_embedder()` straight from a handler; and **chat** (Phase 4).
+3. **Truncate input** before sending: summaries take the first 12,000 characters
+   (`chains.MAX_ARTICLE_CHARS`), page embeddings the first 6,000 (`embedding.MAX_PAGE_CHARS`).
 4. Retries come from the job queue: a handler that **raises** (429, timeouts, 5xx from every model in
    the chain) is retried after 30 s and 2 min, then marked `failed` after 3 attempts (`background-jobs`
    skill). Don't write your own retry loops around model calls; for a bad *answer* (invalid structured
@@ -73,6 +80,7 @@ When code needs fields back, use `model.with_structured_output(PydanticSchema)` 
   (`claim_notice`), so a user can send at most one a day; if Resend refuses, `release_notice` gives
   the slot back (502) so they can try again.
 - New AI actions (chat, tags) should count through the same table and answer 429 the same way.
+  Searches don't count (owner) and never answer 429: the throttle above handles them.
 - `DEV_TOOLS=true` (local only) enables `/api/usage/dev/use-up` and `/dev/reset` to try all this
   without 50 real summaries.
 
@@ -83,7 +91,8 @@ Tests must never hit real APIs. Monkeypatch `app.ai.llm.get_structured_model` (c
 see `FakeModel` in `tests/test_summaries.py`. For free-text models, `FakeListChatModel` /
 `GenericFakeChatModel` work by overriding `get_chat_model`. Embeddings are faked for **every**
 test by conftest's autouse `fake_embedder` (fetching a page queues an embedding, and `.env` may
-hold a real key); it records each request's texts in `calls`, and setting `error` makes requests fail.
+hold a real key); it records each request's texts in `calls` (pages) and `queries` (searches), and
+setting `error` makes requests fail.
 
 ## Observability
 With `LANGSMITH_TRACING=true`, every chain/agent run shows up in LangSmith. Add `run_name` and `metadata={"user_id": ..., "doc_id": ...}` in `config` so traces are easy to find.

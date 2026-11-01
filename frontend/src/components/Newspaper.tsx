@@ -3,8 +3,9 @@ import { Link, useSearchParams } from 'react-router'
 import type { Bookmark, ReadState } from '../api/types'
 import { keptInPlace } from '../lib/cache'
 import { editionDate, type Edition } from '../lib/editions'
-import { age } from '../lib/format'
+import { age, chunks } from '../lib/format'
 import { canSummarise } from '../lib/summaries'
+import Marked from './Marked'
 import SiteIcon from './SiteIcon'
 import { PageState } from './StoryParts'
 import { OpenSummary, SummariseAction } from './Summarise'
@@ -15,13 +16,15 @@ import { OpenSummary, SummariseAction } from './Summarise'
 // brief) and read ones go last, faded. Only the very first story (the lead) shows the page's
 // preview image; a lead without one is text-only. Earlier is paged, 30 briefs a page, newest
 // first, with a pager under it (?page=2). Needs sign-in and Dead links are one sheet
-// each of standard stories (SectionSheet). At 760 px and below every column stacks into one
-// and the column rules become horizontal dividers (`wide:` is the board's breakpoint).
+// each of standard stories (SectionSheet); search results have their own sheet (SearchSheet),
+// built from the same parts. At 760 px and below every column stacks into one and the column
+// rules become horizontal dividers (`wide:` is the board's breakpoint).
 
-type Size = 'lead' | 'second' | 'standard' | 'brief'
+// `side`: a brief with two lines of text, beside the best search result (board FeedSearch).
+export type Size = 'lead' | 'second' | 'standard' | 'brief' | 'side'
 type EarlierPages = { page: number; total: number; pageSize: number }
 
-const SHEET = 'rounded-xl border border-line bg-surface p-[18px] wide:p-7'
+export const SHEET = 'rounded-xl border border-line bg-surface p-[18px] wide:p-7'
 
 export default function Newspaper(props: {
   editions: Edition[]
@@ -313,14 +316,14 @@ export function FrontPageLoading() {
   )
 }
 
-function Bar({ className }: { className: string }) {
+export function Bar({ className }: { className: string }) {
   return (
     <span aria-hidden className={`block animate-sk rounded-md bg-skeleton motion-reduce:animate-none ${className}`} />
   )
 }
 
 /** Band rule, then the date (or what the sheet holds) · title · count, then a double rule. */
-function Masthead(props: { left: string; title: string; right: string; front?: boolean }) {
+export function Masthead(props: { left: React.ReactNode; title: string; right: React.ReactNode; front?: boolean }) {
   return (
     <header className="mb-5">
       <div aria-hidden className={`bg-band rounded-sm ${props.front ? 'h-[5px]' : 'h-[3px]'}`} />
@@ -340,18 +343,21 @@ function Masthead(props: { left: string; title: string; right: string; front?: b
   )
 }
 
-function chunks<T>(items: T[], size: number): T[][] {
-  const rows: T[][] = []
-  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size))
-  return rows
-}
-
-/** A row of stories with thin column rules; `first` = it starts the sheet (no rule above). */
-function Row({ columns, first = false, children }: { columns: 3 | 4; first?: boolean; children: React.ReactNode[] }) {
+/**
+ * A row of stories with thin column rules. `first` = it starts the sheet (no rule above);
+ * otherwise a dark rule above it, or a light one (`rule="line"`) between rows of one block.
+ */
+export function Row(props: {
+  columns: 2 | 3 | 4
+  first?: boolean
+  rule?: 'ink' | 'line'
+  children: React.ReactNode[]
+}) {
+  const { columns, first = false, rule = 'ink', children } = props
+  const grid = { 2: 'wide:grid-cols-2', 3: 'wide:grid-cols-3', 4: 'wide:grid-cols-4' }[columns]
+  const above = first ? '' : `mt-[22px] border-t pt-5 ${rule === 'ink' ? 'border-ink' : 'border-line'}`
   return (
-    <div
-      className={`grid wide:gap-y-[22px] ${columns === 3 ? 'wide:grid-cols-3' : 'wide:grid-cols-4'} ${first ? '' : 'mt-[22px] border-t border-ink pt-5'}`}
-    >
+    <div className={`grid wide:gap-y-[22px] ${grid} ${above}`}>
       {children.map((child, i) => (
         <div key={i} className={cell(i)}>
           {child}
@@ -377,6 +383,7 @@ const TITLE: Record<Size, string> = {
   second: 'text-[28px] leading-[1.15]',
   standard: 'text-[21px] leading-[1.22]',
   brief: 'text-[17px] leading-[1.3]',
+  side: 'text-[17px] leading-[1.3]',
 }
 // How much of the summary each size shows (owner): the lead all of it, a second 5 lines, a
 // standard 3, a brief none (headline and meta only). The detail panel always has it all.
@@ -385,10 +392,18 @@ const TEXT: Record<Size, string | null> = {
   second: 'text-[15px] leading-[1.5] line-clamp-5',
   standard: 'text-sm leading-[1.5] line-clamp-3',
   brief: null,
+  side: 'text-[13px] leading-[1.5] line-clamp-2',
 }
 
-function Story(props: { bookmark: Bookmark; size: Size; faded: boolean; leaving: boolean }) {
+export function Story(props: {
+  bookmark: Bookmark
+  size: Size
+  faded: boolean
+  leaving: boolean
+  highlighted?: string | null // search: the shown text with its matched words marked
+}) {
   const { bookmark, size } = props
+  const small = size === 'brief' || size === 'side'
   const [params, setParams] = useSearchParams()
   const detail = new URLSearchParams(params)
   detail.set('bookmark', String(bookmark.id))
@@ -413,8 +428,8 @@ function Story(props: { bookmark: Bookmark; size: Size; faded: boolean; leaving:
     >
       {size === 'lead' && <LeadImage bookmark={bookmark} />}
       {/* Where it's from comes first (owner): site logo, site, read time, age. */}
-      <span className={`flex min-w-0 items-center gap-2 text-ink2 ${size === 'brief' ? 'text-xs' : 'text-[13px]'}`}>
-        <SiteIcon iconUrl={bookmark.icon_url} site={bookmark.site} brief={size === 'brief'} />
+      <span className={`flex min-w-0 items-center gap-2 text-ink2 ${small ? 'text-xs' : 'text-[13px]'}`}>
+        <SiteIcon iconUrl={bookmark.icon_url} site={bookmark.site} brief={small} />
         <span className="truncate">{meta.filter(Boolean).join(' · ')}</span>
       </span>
       {(size === 'lead' || size === 'second') && folder && (
@@ -431,15 +446,23 @@ function Story(props: { bookmark: Bookmark; size: Size; faded: boolean; leaving:
 
       {/* Fetching, couldn't read, needs sign-in, dead link (board Story states). */}
       <PageState bookmark={bookmark} />
-      {summarised && TEXT[size] && <p className={`m-0 text-ink2 ${TEXT[size]}`}>{bookmark.summary}</p>}
-      {description && <p className={`m-0 text-ink2 ${TEXT[size]}`}>{description}</p>}
+      {summarised && TEXT[size] && (
+        <p className={`m-0 text-ink2 ${TEXT[size]}`}>
+          <Marked text={bookmark.summary!} marked={props.highlighted} />
+        </p>
+      )}
+      {description && (
+        <p className={`m-0 text-ink2 ${TEXT[size]}`}>
+          <Marked text={description} marked={props.highlighted} />
+        </p>
+      )}
       {summarised && size === 'brief' && <OpenSummary to={{ search: detail.toString() }} />}
       {/* A brief never shows its summary, so Summarise there opens the detail panel to show it
           arriving (owner). */}
       {!summarised && canSummarise(bookmark) && (
         <SummariseAction
           bookmark={bookmark}
-          compact={size === 'brief'}
+          compact={small}
           onStarted={size === 'brief' ? () => setParams(detail) : undefined}
         />
       )}

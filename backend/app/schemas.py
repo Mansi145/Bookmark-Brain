@@ -121,6 +121,19 @@ class BookmarkPage(BaseModel):
     total: int | None = None  # only for numbered pages (`page=`): every match, for the pager
 
 
+class SearchResult(BookmarkOut):
+    # The summary (or, without one, the description) with each matched word between "\x02"
+    # and "\x03". None when the shown text has no matched word (e.g. a meaning-only match).
+    highlighted: str | None
+
+
+class SearchOut(BaseModel):
+    items: list[SearchResult]  # best first, at most 10
+    # More than 10 matched: the page says "Top 10 matches". Search never says how it matched
+    # (owner), so keyword-only results (meaning search unavailable) look the same.
+    more: bool
+
+
 class FacetCount(BaseModel):
     value: str
     count: int

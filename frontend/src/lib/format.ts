@@ -1,4 +1,4 @@
-// Small text helpers shared by the feed rows and the detail panel.
+// Small text helpers shared by the feed rows, search and the detail panel.
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
 
@@ -22,4 +22,17 @@ export function age(iso: string) {
   if (days < 30) return `${Math.floor(days / 7)}w ago`
   if (days < 365) return `${Math.floor(days / 30)}mo ago`
   return formatDate(iso)
+}
+
+/** A search's count: "Top 10 matches" when the server had more than it sent, else "N bookmarks". */
+export function searchCount(shown: number, more: boolean) {
+  if (more) return `Top ${shown} matches`
+  return `${shown} ${shown === 1 ? 'bookmark' : 'bookmarks'}`
+}
+
+/** `items` in rows of `size` (the newspaper's ruled rows). */
+export function chunks<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = []
+  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size))
+  return rows
 }

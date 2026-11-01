@@ -15,7 +15,8 @@ type CachedBookmarks = InfiniteData<BookmarkPage> | BookmarkPage | Bookmark
  * the change before refetching.
  */
 export function updateCachedBookmark(queryClient: QueryClient, updated: Bookmark) {
-  const swap = (items: Bookmark[]) => items.map((b) => (b.id === updated.id ? updated : b))
+  // Merged, so what only a cached copy has (a search result's highlighted words) stays.
+  const swap = (items: Bookmark[]) => items.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
   queryClient.setQueriesData<CachedBookmarks>({ queryKey: ['bookmarks'] }, (old) => {
     if (!old) return old
     if ('items' in old) return { ...old, items: swap(old.items) }
