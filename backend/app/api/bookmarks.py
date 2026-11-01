@@ -49,6 +49,23 @@ def _section_filter(section: Section):
     return ~Bookmark.document.has(or_(_needs_sign_in, _dead_links))
 
 
+def in_folder_or_browser(folder: str | None, browser: str | None) -> list:
+    """The sidebar's filters as conditions on Bookmark (also used by search)."""
+    if not (folder or browser):
+        return []
+    source_filter = [BookmarkSource.bookmark_id == Bookmark.id]
+    if folder:  # the folder itself or any subfolder
+        source_filter.append(
+            or_(
+                BookmarkSource.folder_path == folder,
+                BookmarkSource.folder_path.startswith(folder + "/", autoescape=True),
+            )
+        )
+    if browser:
+        source_filter.append(BookmarkSource.browser == browser)
+    return [select(BookmarkSource.id).where(*source_filter).exists()]
+
+
 def _encode_cursor(bookmark: Bookmark) -> str:
     return f"{bookmark.added_at.isoformat()}_{bookmark.id}"
 
@@ -86,18 +103,7 @@ async def list_bookmarks(
     if read_state is not None:
         query = query.where(Bookmark.read_state == read_state)
 
-    if folder or browser:
-        source_filter = [BookmarkSource.bookmark_id == Bookmark.id]
-        if folder:  # the folder itself or any subfolder
-            source_filter.append(
-                or_(
-                    BookmarkSource.folder_path == folder,
-                    BookmarkSource.folder_path.startswith(folder + "/", autoescape=True),
-                )
-            )
-        if browser:
-            source_filter.append(BookmarkSource.browser == browser)
-        query = query.where(select(BookmarkSource.id).where(*source_filter).exists())
+    query = query.where(*in_folder_or_browser(folder, browser))
 
     if saved_after is not None:
         query = query.where(Bookmark.added_at >= saved_after)
@@ -112,7 +118,7 @@ async def list_bookmarks(
         total = await session.scalar(select(func.count()).select_from(query.subquery()))
         query = query.order_by(*newest_first).offset((page - 1) * limit).limit(limit)
         rows = (await session.scalars(query)).unique().all()
-        return BookmarkPage(items=[_to_out(b) for b in rows], next_cursor=None, total=total)
+        return BookmarkPage(items=[bookmark_out(b) for b in rows], next_cursor=None, total=total)
 
     # Keyset pagination: "rows after this (added_at, id)". Unlike OFFSET, it stays
     # fast on page 100 and doesn't skip/duplicate rows when new bookmarks arrive.
@@ -130,7 +136,7 @@ async def list_bookmarks(
     page, has_more = rows[:limit], len(rows) > limit
 
     return BookmarkPage(
-        items=[_to_out(b) for b in page],
+        items=[bookmark_out(b) for b in page],
         next_cursor=_encode_cursor(page[-1]) if has_more else None,
     )
 
@@ -256,7 +262,7 @@ async def find_archive_copy(bookmark_id: int, user: CurrentUser, session: Sessio
         document.archive_status = "checking"
         await enqueue(session, "find_archive", [{"document_id": document.id}])
         await session.commit()
-    return _to_out(bookmark)
+    return bookmark_out(bookmark)
 
 
 @router.patch("/{bookmark_id}", response_model=BookmarkOut)
@@ -267,7 +273,7 @@ async def update_bookmark(
     bookmark = await _own_bookmark(session, user.id, bookmark_id)
     bookmark.read_state = changes.read_state
     await session.commit()
-    return _to_out(bookmark)
+    return bookmark_out(bookmark)
 
 
 @router.post("/{bookmark_id}/summarise", response_model=BookmarkOut, status_code=202)
@@ -299,14 +305,14 @@ async def summarise_bookmark(
         document.summary_status = "working"
         await enqueue(session, "summarise", [{"document_id": document.id, "title": bookmark.title}])
         await session.commit()
-    return _to_out(bookmark)
+    return bookmark_out(bookmark)
 
 
 # Declared after /facets and /sync-summary: routes match in order, and "facets" isn't an id.
 @router.get("/{bookmark_id}", response_model=BookmarkOut)
 async def get_bookmark(bookmark_id: int, user: CurrentUser, session: SessionDep):
     """One bookmark, for the detail panel (it may not be in the feed pages loaded so far)."""
-    return _to_out(await _own_bookmark(session, user.id, bookmark_id))
+    return bookmark_out(await _own_bookmark(session, user.id, bookmark_id))
 
 
 async def _own_bookmark(session, user_id: int, bookmark_id: int) -> Bookmark:
@@ -321,7 +327,8 @@ async def _own_bookmark(session, user_id: int, bookmark_id: int) -> Bookmark:
     return bookmark
 
 
-def _to_out(bookmark: Bookmark) -> BookmarkOut:
+def bookmark_out(bookmark: Bookmark) -> BookmarkOut:
+    """A bookmark as the feed shows it (also used by search)."""
     return BookmarkOut(
         id=bookmark.id,
         title=bookmark.title,

@@ -1,6 +1,6 @@
 ---
 name: ui-design
-description: Bookmark Brain's final visual design (dark Nude nebula texture, colours, warm charcoal dark mode, fonts, Masthead BB logo and its animations, landing page, newspaper front-page feed, Settings, Digest) with exact tokens for building it in React/Tailwind. Use when building or restyling any frontend page or component, the extension popup, or design canvas boards.
+description: Bookmark Brain's final visual design (dark Nude nebula texture, colours, warm charcoal dark mode, fonts, Masthead BB logo and its animations, landing page, newspaper front-page feed, search, Settings, Digest) with exact tokens for building it in React/Tailwind. Use when building or restyling any frontend page or component, the extension popup, or design canvas boards.
 ---
 
 # UI design
@@ -13,13 +13,16 @@ Read a board's file through the Artifact tool when you need exact markup. Its pa
 - **Home**: `Login` (sign-up), `HowItWorks`, `Main` (the feed; every feed board imports it), the
   feed sections, empty states, `RowStates`, `FeedLoading`, `Ask`, `AskEmpty`, `Digest`,
   `DigestDark`, `FeedSearch`, `FeedDetail`, `FeedDetailUnsummarised`, `FeedFirstRun`, `MarkAsRead`,
-  `FeedPhone`, `FeedPhoneDark`.
-- **Components**: `Texture`, `LogoFinal`, `LogoAnimations`, plus the previous logo and the logo tests.
+  `FeedPhone`, `FeedPhoneDark`, and the search states (`FeedSearchLoading`, `FeedSearchEmpty`,
+  `FeedSearchError`, each with a `…Dark` board, plus `FeedSearchDark`).
+- **Components**: `Texture`, `LogoFinal`, `LogoAnimations`, plus the previous brain logo (`Logo`,
+  `LogoVariants`) and the `LogoDirections` tests, kept for reference only.
 - **Other screens**: `FeedDark`, Settings (Browsers, Account, delete dialog, dark), `AccountMenu`,
   the popup states, Connect and error pages (light and dark), `LimitDialog`.
-- **Archive** (owner, 2026-10-27): the trials that were compared and decided, for reference only;
-  don't build from them. The newspaper layouts (`NewsClassic`, `NewsGrid`, `NewsSections`) and the
-  softer dark mode options (`DarkModeOptions`, `DarkExample*`).
+- **Archive**: trials that were compared and decided, for reference only; don't build from them.
+  The newspaper layouts (`NewsClassic`, `NewsGrid`, `NewsSections`), the dark mode options
+  (`DarkModeOptions`, `DarkExample*`) and the dropped search keyword-only state
+  (`FeedSearchKeyword`, `FeedSearchKeywordDark`).
 
 ## Tokens
 | Token | Light | Dark | Use |
@@ -38,25 +41,22 @@ Read a board's file through the Artifact tool when you need exact markup. Its pa
 | skeleton | `#E7E4DF` | `#3A3430` | loading bars and progress-bar tracks (warm grey to sit on the off-whites) |
 | deadBg / deadFg | `#F8E3E3` / `#7C1D1D` | `#3D2224` / `#F5B5B5` | dead link notice |
 
-**Dark mode is "warm charcoal"** (owner, 2026-10-27; the options are on the canvas's Archive page): lifted,
-slightly warm greys with off-white text instead of near-black and bright white. Contrast on cards:
-text 11.9, `ink2` 8.5, `muted` 5.7.
+**Dark mode is "warm charcoal"**: lifted, slightly warm greys with off-white text instead of
+near-black and bright white. Contrast on cards: text 11.9, `ink2` 8.5, `muted` 5.7.
 
 Theme follows the system (`prefers-color-scheme`) until the user flips the Dark mode switch in the
 account menu; remember that choice. Text is near-black, never mid-grey; keep 4.5:1
 contrast, even for 12–13 px meta text. Define these as CSS variables / Tailwind `@theme` tokens once,
 not as scattered hex values.
 
-**No pure-white pages (owner, 2026-10-23):** "the completely white background looks bad". Three
-off-white layers: `bg` page → `panel` (radius 16 px, padding 18–24 px) behind the filters and behind
-the main feed → `surface` card per article (radius 12 px, 1 px `line`). Neutral greys, not tints of
-the gradient. Applies everywhere (feed, Settings, popup body, How it works, cards on the landing
-page); the only pure white left is the favicon chip. Owner likes the shades; may revisit later.
+**No pure-white pages (owner).** Three off-white layers: `bg` page → `panel` (radius 16 px, padding
+18–24 px) behind the filters and behind the main feed → `surface` card per article (radius 12 px,
+1 px `line`). Neutral greys, not tints of the gradient. Applies everywhere (feed, Settings, popup
+body, How it works, cards on the landing page); the only pure white is the site-logo chip.
 
-**Accent rule (owner, 2026-10-23): never use light colours or tints of the gradient, always the dark
-Nude colours**, with white text on them, in both themes. This replaced the old `blue` `#DCEAF3` /
-`pink` `#FBEAF2` and a short-lived light peach / butter pair. Page, surfaces, lines and body text
-stay as in the table. Primary action buttons stay `ink` (near-black) with white text.
+**Accent rule (owner): never light colours or tints of the gradient, always the dark Nude
+colours**, with white text on them, in both themes. Primary action buttons are `ink` (near-black)
+with white text.
 
 **Fonts** (Google Fonts): **Aleo** 500/600/700 for headings, group names and bookmark titles;
 **Geist** 400/500/600 for everything else (15 px base, 1.5 line height).
@@ -64,29 +64,25 @@ Sizes in the feed: page title 40 px; edition masthead 48 px (32 px for the small
 on phones); headlines lead 44 px, second 28 px, standard 21 px, brief 17 px, with summaries at 18 /
 15 / 14 px; source line 13 px (12 px on briefs).
 
-## Nebula texture: dark Nude (decided 2026-10-23)
-Replaces the old blue → pink Cloudlifter texture ("looked unprofessional"). It is the dark version
-of Figma's **Nude** gradient (`#EB9571 → #FFDD92`, both stops mixed 72 % toward `#141518`), chosen
-on a "Gradient test" page (since deleted). Rejected, don't retry: the light gradients, and anything with
-purple. **Text on the texture is white** (`#FFFFFF`; secondary `#EFE8E2`). Recipe:
+## Nebula texture: dark Nude
+The dark version of Figma's **Nude** gradient (`#EB9571 → #FFDD92`, both stops mixed 72 % toward
+`#141518`). Rejected, don't retry: light gradients (including the old blue → pink one) and anything
+with purple. **Text on the texture is white** (`#FFFFFF`; secondary `#EFE8E2`). Recipe:
 1. Base `linear-gradient(90deg, #503931 0%, #564D3A 100%)`, `overflow: hidden`.
 2. A blurred layer (hero: `inset: -240px -16%`, `blur(140px)`; short bars: `inset: -60px -8%`,
    `blur(60px)`) of overlapping ellipses (`border-radius: 50%`): `#48332C` .85, `#624D46` .7,
    `#534336` .85, `#564D3A` .95, `#4C4433` .8, `#59433B` .8, `#675F4E` .7, white .06
-   (opacity after each colour; same positions as before).
+   (opacity after each colour; positions in `frontend/src/components/Nebula.tsx`).
 3. Film grain: full-size SVG `feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3"`
    + `feColorMatrix saturate 0`, **`mix-blend-mode: screen`, opacity 0.12** (multiply is invisible
    on dark).
-Make it one reusable `<Nebula>` component.
+One reusable `<Nebula>` component.
 
 On the texture: primary button white with `#141516` text; secondary button outlined
 `rgba(255,255,255,.5)` on `rgba(255,255,255,.08)` with white text; white cards on it keep their own
 near-black text.
 
-**Rollout:** done everywhere (landing, How it works, feed, Settings, popup, Texture, logo tests).
-Nothing uses Cloudlifter any more.
-
-## Logo: Masthead BB (final, owner 2026-10-27)
+## Logo: Masthead BB
 Board `LogoFinal` (Components page) has both SVGs to copy. A backwards B and a B drawn as shapes
 (no font), sharing one spine and mirrored on the centre line, between newspaper rules, on a cream
 tile. Colours: tile `#F4EDE4`, letters `#141516`, rules `#503931` (accent). Same in both themes.
@@ -97,10 +93,8 @@ tile. Colours: tile `#F4EDE4`, letters `#141516`, rules `#503931` (accent). Same
 - Lockups: top bar = small mark + "Bookmark Brain" (Aleo 21 px, white on the texture); sign-up hero =
   full mark at 150 px + stacked "Bookmark / Brain" (Aleo 40 px).
 - Clear space: one eighth of the logo's size. Don't recolour or stretch it.
-- Previous logo (a cute brain on a bookmark ribbon with a Mulberry pink fill, `Logo`,
-  `LogoVariants`) and the twelve `LogoDirections` tests are kept on the canvas for reference only.
 
-## Landing page and How it works (signed out), split 2026-10-23
+## Landing page and How it works (signed out)
 - **Landing / sign-up page** (`Login.dc.html`): one screen, entirely on the texture. Top bar (logo,
   How it works, Features, dark Sign in button), medium logo beside a stacked "Bookmark / Brain"
   wordmark, headline **"Saved it? Now actually use it."** (Aleo 64 px), the sign-in buttons, "Free ·
@@ -111,7 +105,8 @@ tile. Colours: tile `#F4EDE4`, letters `#141516`, rules `#503931` (accent). Same
 - **Sign-in buttons**: dark (`#141516`, 1 px `#8E918F` border, white text, 52 px) with the real
   marks: Google's four-colour **G** (Google's sign-in guidelines use the G, not the Gmail logo) and
   GitHub's white Octocat. These two are filled brand marks, the one exception to stroke icons.
-  GitHub sign-in needs backend work.
+  A failed GitHub sign-in (cancelled, no verified email, unavailable) is one line of text under
+  the buttons, like Google's "Sign-in failed: …".
 - **How it works page** (`HowItWorks.dc.html`): texture header band with the top bar (How it works
   current) and an Aleo 56 px "How it works" title; then the 3 steps (step 2 = click **Connect this
   browser**), "What it does with your bookmarks" (`#features`: **your own front page** with the same mini
@@ -119,7 +114,7 @@ tile. Colours: tile `#F4EDE4`, letters `#141516`, rules `#503931` (accent). Same
   bookmarks, plus dead links (archived copy on request) / reading status / digest), a closing call to action on the texture with
   the same sign-in buttons, and the footer.
 
-## App shell and feed (signed in), updated 2026-10-27
+## App shell and feed (signed in)
 Boards: `Main.dc.html` (feed; a `section` setting switches feed / signin / dead / states / search /
 firstrun / loading, `detail` and `unsummarised` open the detail panel, `empty` shows the empty
 state, `dark` the dark theme, `menu` the account menu), `FeedSignIn`, `FeedDead`, `FeedSignInEmpty`,
@@ -128,11 +123,13 @@ newspaper front page further down ("Newspaper feed"); the bullets here cover the
 states every story shares.
 - **Top bar** on the dark texture, white text: small logo + "Bookmark Brain" (Aleo 21 px); a dark
   search field (`rgba(23,24,26,.55)`, 1 px `rgba(255,255,255,.18)`, "Search by meaning or keyword…",
-  `/` shortcut); **tabs Feed · Ask · Digest** (Settings is not a tab any more: owner, 2026-10-27; it's in the account menu) (owner: the sections are NOT in the top nav; the
-  current tab on `rgba(255,255,255,.14)`, weight 600); a quiet **How it works** link with a
-  help icon (to the How it works page); a white round account button (the user's initial).
-  **No theme button in the top bar any more** (owner, 2026-10-27): the light / dark switch lives in
-  the account menu. The theme still defaults to the system setting until changed; remember the choice.
+  `/` shortcut hint, hidden on phones; once there's text the hint becomes a **clear ×** button
+  (36 px target, 24 px `rgba(255,255,255,.16)` circle) that goes back to the feed,
+  as Escape does; the field wraps to its own full-width row on phones); **tabs Feed · Ask · Digest**
+  (current tab on `rgba(255,255,255,.14)`, weight 600; Settings is in the account menu, and the
+  feed sections are never tabs); a quiet **How it works** link with a help icon; a white round
+  account button (the user's initial). No theme button: the light / dark switch is in the account
+  menu.
 - **Account menu** (`AccountMenu`, `AccountMenuDark`): the account button (`aria-haspopup="menu"`,
   `aria-expanded`) opens a 272 px `surface` card under it, right-aligned, 1 px `line`, radius 14 px,
   soft shadow: avatar initial on `accent` + name + email, then rows (40 px, icon + label)
@@ -140,14 +137,12 @@ states every story shares.
   when on, `line` when off, white knob), a divider, **Sign out**. Closes on Escape or a click outside.
 - **Three feed sections**, each bookmark in exactly one: **Feed** (pages we can read), **Needs
   sign-in** (needs an account: "Needs sign-in", or a subscription: "Subscribers only") and **Dead
-  links** (links we can't fetch that no longer load on the internet, e.g. 404/410). **There is no
-  "Archived" reading state** (owner removed it 2026-10-23 to avoid confusion with dead links): the
-  reading states are only Unread and Read.
+  links** (links we can't fetch that no longer load on the internet, e.g. 404/410). Reading states
+  are only Unread and Read (no "Archived": it was confused with Dead links).
 - **Sidebar** (220–260 px): Browsers and Folders (indented subfolders) with counts, per section.
   Selected item on `accent`, white text, weight 600.
-- **Header**: page title ("Feed" / "Needs sign-in" / "Dead links", Aleo 40 px), a count line
-  ("248 bookmarks · 2 being fetched · synced from Chrome 2 min ago"), Sort select (Newest, Oldest,
-  Shortest read).
+- **Header**: page title ("Feed" / "Needs sign-in" / "Dead links", Aleo 40 px) and a count line
+  ("248 bookmarks · 2 being fetched · synced from Chrome 2 min ago"). No sort menu.
 - **Feed views bar** (owner: its own bar above the list, NOT in the top navigation or the sidebar),
   shown in all three sections: a row of 40 px pill links under the header: **All bookmarks · Unread
   · Read**, a thin vertical divider, then **Needs sign-in · Dead links**, each with its
@@ -158,11 +153,9 @@ states every story shares.
   "Nothing needs sign-in" / "Pages that need an account or a subscription will show up here.";
   "No dead links" / "Links that stop working show up here. You can look each one up on the Wayback Machine."
   Filters stay with zero counts.
-- **The old reading list (date bands + a card per row) is replaced** by the newspaper front page
-  (owner, 2026-10-27; see "Newspaper feed" below). What carried over: Today / This week / Earlier
-  by save date, "n min read" from the word count, read stories faded, no grid/list toggle, no
+- "n min read" comes from the word count; read stories are faded; no grid/list toggle, no
   coloured chips.
-- **Site logos (favicons)** (owner, 2026-10-23): the site's own logo, 14 px, centred on a 20 px
+- **Site logos (favicons)**: the site's own logo, 14 px, centred on a 20 px
   **white `#FFFFFF` chip** (radius 6 px, 1 px `line` border) in both themes, so dark marks (GitHub)
   stay visible on dark and colourful ones don't clash with the brown accents. Fallback when there's
   no logo or it fails to load: the 20 px letter tile on `accent` with a white letter. `aria-hidden`
@@ -172,28 +165,27 @@ states every story shares.
   because they can't load real favicons.
 - **Summaries are on demand.** Every row without a summary has a **Summarise** button (36 px,
   outlined, three-lines icon) under the title, where the summary will appear:
-  idle "Summarise" → working: `accent2` pill, white spinner + "Summarising…", + one skeleton bar → done: the
-  summary, as many lines as the story's size allows (briefs: Open summary) → failed: "Couldn't summarise this page." + **Try again** → daily limit: the button
-  disabled (50 %) + "Daily summary limit reached · resets at midnight UTC" in `muted`.
-- **No source or trust labels** (owner's decision: badges made the app look unreliable). Summaries
-  from the live page, an archive.org copy, Gemini reading the URL, or a link-only guess all look the
-  same; so does the site's own description when there is no page text.
+  idle "Summarise" → working: `accent2` pill, white spinner + "Summarising…", + one skeleton bar →
+  done: the summary, as many lines as the story's size allows (briefs: Open summary) → failed:
+  "Couldn't summarise this page." + **Try again**. At the daily limit, pressing it opens the Limit
+  reached dialog instead.
+- **No source or trust labels** (owner: badges made the app look unreliable). Summaries from the
+  live page, an archived copy or just the title and description all look the same; so does the
+  site's own description when there is no page text.
 - **Page states** (one 14 px line under the title, small stroke icon, `ink2` text, weight 500):
   "Fetching page…" (`accent2` pill + skeleton, like Summarising); "Couldn't read this page" (file
   icon; JS apps, bot-protected sites); "Needs sign-in" / "Subscribers only" (lock icon); dead in
   `deadFg`, weight 600: "Page no longer available (404)." (broken-link icon). Summarise stays
   available on unreadable and sign-in rows.
-- **Dead links: the Wayback Machine only on request** (owner, 2026-10-23). A dead row has no
+- **Dead links: the Wayback Machine only on request** (owner). A dead row has no
   Summarise button; in its place a **"Find archived copy"** button (36 px, outlined, history icon)
   looks up the latest Wayback Machine snapshot only when clicked. States: working = `accent2` pill
   "Checking the Wayback Machine…"; found = "· Archived copy · 9 Jan 2019" link appended to the dead
   line, and the **Summarise** button appears (summarises that copy); none = "No archived copy on the
   Wayback Machine." in `ink2`; failed = "Couldn't reach the Wayback Machine." + **Try again**.
   Nothing is fetched from archive.org automatically.
-- Shortest-read sort shows a flat list (date groups only make sense for date sorts).
 
-## More pages (designed 2026-10-23; owner chose the layouts)
-Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to the account menu).
+## More pages
 - **Bookmark detail** (`FeedDetail`; Main `detail`): a **480 px side panel** from the right over a
   35 % dark backdrop (full screen on phones), on `panel`. Close button; logo chip + site · folder ·
   browser; Aleo 30 px title; "Saved 2 days ago · 6 min read"; **Open page** (`ink`), Mark as read,
@@ -207,10 +199,11 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   "The site's own description…" line and the Summarise button, and there's no Re-summarise. Tags (outlined pills with remove ×; AI
   suggestions dashed with ✓ / ×; "Add tag"); Details (browsers/folders, full URL).
 - **Tags**: a "Tags" group in the feed sidebar with counts, and in the detail panel. Not on rows.
-- **Search results** (`FeedSearch`; Main `section="search"`): replace the feed in place. Query stays
-  in the top-bar field; title "Results for “…”", line "5 bookmarks · matched by keyword and by meaning
-  · Clear search"; one "Best matches" band, ranked rows; matching words in summaries highlighted as
-  `<mark>` on `accent` with white text. Feed views bar hidden; sidebar filters still apply.
+- **Search results** (`FeedSearch` and the search-state boards; Main `section="search"` plus a
+  `search` setting: results / searching / none / error): replace the feed in place. Query
+  stays in the top-bar field; title "Search results", line "Top 10 matches · Clear search"; matching words in summaries highlighted as `<mark>` on `accent` with
+  white text. Feed views bar hidden; sidebar filters still apply. The sheet itself and every state
+  are under **Search** in the newspaper feed section below.
 - **First run** (`FeedFirstRun`): one `surface` card: bookmark icon on `accent`, "Connect your first
   browser", two numbered steps, **Get the extension** (`ink`) + **Connect by hand** (to Settings).
 - **Ask** (`Ask`, `AskEmpty`): three panels. Left: **New chat** (`ink`) + Recent chats (current on
@@ -220,7 +213,7 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   bookmarks…" + skeleton lines; composer (textarea + `ink` send button) and "Answers use only pages
   you've saved, and link to each one." Right: **Sources** (numbered cards with logo chip, site, Aleo
   title) + "Also found". Empty: "Ask your bookmarks" + 4 suggested-question pills.
-- **Weekly digest** (`Digest`, `DigestDark`), a **newsletter** (owner, 2026-10-27): no sidebar. One
+- **Weekly digest** (`Digest`, `DigestDark`), a **newsletter**: no sidebar. One
   `panel` with "Weekly digest" (Aleo 40 px), "Unread bookmarks you saved more than 30 days ago,
   gathered once a week.", then **back-issue tabs** (This week · 16–22 Oct · 9–15 Oct · 2–8 Oct ·
   Older; underline style, current = 3 px `accent` underline, counts in `muted`). Below, one centred
@@ -240,19 +233,23 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   dark texture with a `surface` card per state (icon on `accent`, Aleo 24 px title, one line, one
   action). Connect: signed out (sign-in buttons) → Connecting… → Syncing (n found, progress bar) →
   Connected (a summary with Open your feed; see Connect extras) → extension didn't answer (token
-  shown once + Copy) → link expired (15 min). Errors: 404 (Back to your feed), server waking up (free server sleeps, up
-  to a minute), signed out (sign-in buttons), something went wrong (Try again).
+  shown once + Copy) → link expired (15 min), plus three states whose wording the owner approved:
+  "Connected, but the first sync failed" (the extension's error + Go to your feed), "Something went
+  wrong" (the token couldn't be made; Try again) and "Connect from the extension" (page opened
+  without the extension's link; Connect by hand). Errors: 404 (Back to your feed), server waking up
+  (free server sleeps, up to a minute), signed out (sign-in buttons), something went wrong (Try
+  again).
 - These cards **follow the theme** (owner): `surface` / `ink` / `ink2`, so they turn dark in dark
   mode (main button `ink` with `onInk` text; sign-in buttons stay dark); the texture behind them is
   the same in both. Boards `ConnectStatesDark`, `ErrorStatesDark`.
-- **Connect extras** (owner picked all; placement may move later):
+- **Connect extras**:
   - Connecting / Syncing / Done start with a **step strip** (Connect → Sync → Open feed; done = `accent`
     check, current = `accent` number, upcoming = outlined) and the **browser's logo and ours** on
     56 px white chips joined by a line: dotted and moving while connecting, an `accent` line with
     flowing gaps while syncing, solid with an `accent` check when done (motion off for reduced motion).
   - Syncing: "231 bookmarks in 14 folders so far" + progress bar + **Just arrived** (the newest 4
     bookmarks with site logos, title and site).
-  - Done **no longer opens the feed by itself**: two stat tiles (bookmarks, folders), "Also
+  - Done **doesn't open the feed by itself**: two stat tiles (bookmarks, folders), "Also
     connected: …" (only when other browsers are), what happens next (pages read in the background,
     summaries on Summarise), a **pin the extension** tip, **Open your feed** + **Connect another
     browser** (to Settings).
@@ -270,16 +267,13 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   signed-in person can send it each time they hit the limit, no "already reported" state; the
   email carries their account email and the time, and the dialog says so under the button.
   No "couldn't send" screen or retry button (owner): the states are only default, Sending…, Sent.
-- **Newspaper feed: the owner chose the classic front page** (`NewsClassic`). It replaces the
-  date-grouped list: Today / This week / Earlier are editions, each one `surface` sheet with a
+- **Newspaper feed** (`Main`): Today / This week / Earlier are editions, each one `surface` sheet with a
   masthead (band rule, Aleo title centred between the date and counts, double rule under it) and
   thin `line` column rules instead of a card per article. Newest unread stories are biggest (lead →
   second → standard → brief; read ones last and faded); summaries (a 5–6 sentence
   paragraph) show in full on the lead, 5 lines on second stories, 3 on standard, none on briefs; only the top lead shows the page's
-  preview image (16:9, caption "Image from <site>"; no image → a text-only lead). `NewsGrid` and
-  `NewsSections` were the other trials; all three are on the Archive page now, and `Main` is the
-  board to build from.
-  - **Story anatomy** (owner, 2026-10-27): every story starts with its **source line** (site logo ·
+  preview image (16:9, caption "Image from <site>"; no image → a text-only lead).
+  - **Story anatomy**: every story starts with its **source line** (site logo ·
     site · read time · age) at the top, above the folder label and the headline; on the lead it sits
     just under the preview image. Same in the sections, states, search and the mini front pages.
   - **Briefs** never show summary text. Not summarised: a compact **Summarise** (32 px, lines icon)
@@ -289,7 +283,7 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
   - **Earlier** is paginated, newest first (owner): 30 briefs per page in 4 ruled columns, then a
     pager under a thin `ink` rule: "Showing 1–30 of 189 · newest first" on the left; **‹ Newer**
     (disabled on page 1), page numbers (36 px squares; current on `accent`), an ellipsis, the last
-    page, **Older ›** on the right. Replaces the old "N more from earlier" link.
+    page, **Older ›** on the right.
   Built into `Main` (Home · feed) and every board that imports it:
   - **Sections**: Needs sign-in and Dead links are one sheet each (small masthead, standard stories
     in 3 ruled columns, each with its state line); empty states as before.
@@ -297,17 +291,39 @@ Top nav is **Feed · Ask · Digest** (Digest is its own page; Settings moved to 
     couldn't read / needs sign-in / subscribers only / site's own description / read; dead link not
     looked up / checking / copy found / found and summarised / no copy / couldn't reach. A state label
     pill sits above each example only on that board. Daily limit → the Limit reached dialog.
-  - **Search** (`FeedSearch`): one sheet, masthead is the query in quotes, best match as a second-size
-    story beside two briefs, then standard results; matched words on `accent` with white text.
+  - **Search** (`FeedSearch`): one sheet; the masthead is the query in quotes,
+    centred, with the count on the right (the left side stays empty). Best match as a second-size story beside two briefs, then standard
+    results in ruled columns; results include read stories (faded), subscribers-only and dead links,
+    each with its usual state line. Matched words on `accent` with white text.
+    - **At most 10 results**, best first, no Show more or pager (owner). The server merges the top 50
+      keyword and top 50 meaning matches and returns the best 10 (meaning search always fills every
+      slot, so a small cap keeps weak matches out); when more than 10 matched the count reads
+      **"Top 10 matches"**, otherwise "N bookmarks".
+    - **Searching** (`FeedSearchLoading`): masthead "Searching your bookmarks…" (`role="status"`),
+      the query, a skeleton count; skeleton stories in the results' shape (pulsing, still with
+      reduced motion). The logo plays Lens meanwhile.
+    - **No results** (`FeedSearchEmpty`, `FeedSearchEmptyDark`): "0 bookmarks"; centred: magnifier
+      on a 52 px `accent` circle, "Nothing matched “…”" (Aleo 21 px), "Try different words, or fewer
+      of them. Search looks through the titles, summaries and page text of everything you've saved,
+      read or not." + "A browser, folder or tag picked in the sidebar narrows the search too." +
+      outlined **Clear search** (40 px).
+    - **Never say how it matched** (owner): no "matched by keyword / by meaning" text anywhere.
+      When search by meaning is unavailable or a search is throttled, keyword matches come back
+      and look exactly like normal results.
+    - **Couldn't search** (`FeedSearchError`): the request failed. Masthead sides empty; centred:
+      "!" on a 52 px `accent` circle, "Couldn't search right now", "That didn't work on our side.
+      Your bookmarks are safe, so try again in a moment.", **Try again** (`ink`, `onInk` text,
+      refresh icon, 40 px) + outlined **Clear search**. Header line "Search didn't finish".
+    - **Not shown** (owner): no state for searching too fast (the backend throttles or
+      rate-limits instead, so the user never sees it, and never the Limit reached dialog); no folder
+      label on results that matched through their folder name.
+    - Every state has a dark board (`FeedSearchDark`, `FeedSearchLoadingDark`, `FeedSearchEmptyDark`,
+      `FeedSearchErrorDark`), built from the dark tokens like `FeedDark`.
   - **Loading** (`FeedLoading`): the front page's shape in `skeleton` bars (pulsing, still with
     reduced motion) + "Loading your front page…".
   - **Phone** (`FeedPhone`, `FeedPhoneDark`, 390 px): every column stacks into one, rules become
     horizontal dividers, sheet padding 18 px, masthead 30 px; sidebar and top bar stack above.
   - First run: "Your bookmarks will show up here as your own front page."
-- Connect also has three states the build added, on the board as 7–9; the owner
-  approved their wording: "Connected, but the first sync failed" (the extension's error + Go to
-  your feed), "Something went wrong" (the token couldn't be made; Try again) and "Connect from the
-  extension" (page opened without the extension's link; Connect by hand).
 
 ## Settings
 Same dark-texture top bar as the feed (no tab is current, since Settings opens from the account
@@ -325,15 +341,27 @@ radius 12 px, Aleo 21 px headings:
   button in `deadFg`.
 - **No AI usage section** (owner): users aren't shown AI usage at all. The only hint is the
   free-plan note and, when it happens, the Limit reached dialog.
-- **Account** (`SettingsAccount`, `SettingsAccountDark`; Settings `section="account"`), three cards:
-  - **Your account**: 56 px avatar initial on `accent`, name, email, "Signed in with Google" (or
-    GitHub) with the provider's mark, an outlined **Sign out** button, and "Your name and picture
-    come from your Google or GitHub account. Change them there."
+- **Account** (`SettingsAccount`, `SettingsAccountLinked`, `SettingsAccountDark`; Settings
+  `section="account"`, `providers` google / github / both), four cards:
+  - **Your account**: 56 px avatar initial on `accent`, name, email, then one 13 px `ink2` line with
+    every provider linked to the account: the 14 px marks first (Google's four-colour G, then the
+    Octocat in `ink`, never white, on the card) and "Signed in with Google", "Signed in with GitHub"
+    or "Signed in with Google and GitHub" (owner: the same verified email is one account); an
+    outlined **Sign out** button, and "Your name and picture come from your Google or GitHub
+    account. Change them there."
+  - **Sign-in methods** (owner, 2026-11-01; built ahead of its board): "Either one signs you in to
+    this account.", then a row per provider like Connected browsers (`line` divider, 20 px mark in a
+    36 px box, Octocat in `ink`): name, a 13 px `ink2` line "Linked", "Linked · your only sign-in
+    method" or "Not linked", and on the right **Unlink** (text button in `deadFg`, like Revoke;
+    hidden for the only method left) or **Link**: Google's own button (`filled_black`, medium,
+    "Continue with Google") / an outlined 36 px "Link" for GitHub. A problem shows as one 13 px
+    `deadFg` line under the rows ("That GitHub account has its own Bookmark Brain account, so it
+    can't be linked here.", "Linking GitHub was cancelled.", …).
   - **Download my data**: "A JSON file with your bookmarks, folders, browsers, read states, tags and
     their summaries. It's ready in a few seconds." + **Download my data** (`ink`, download icon).
   - **Delete account** (heading in `deadFg`): "Permanently deletes your account, your bookmarks, read
     states, tags and connected browsers. The extension stops syncing. This can't be undone." +
-    **Delete account…** filled with `deadFg`, `onDead` text (owner, 2026-10-27; it was outlined), which opens a dialog (`SettingsAccountDelete`):
+    **Delete account…** filled with `deadFg`, `onDead` text, which opens a dialog (`SettingsAccountDelete`):
     bin icon on `deadBg`, "Delete your account?", what will be deleted with real counts, a
     "Download my data" link, "Type DELETE to confirm" input, **Delete everything** (`deadFg` fill,
     `onDead` text: white light / `#1F1C1A` dark; disabled until DELETE is typed) + Cancel.
@@ -352,7 +380,7 @@ and "Manage connected browsers in Settings" at the bottom. Status card per state
 
 Dark mode: Settings and the popup use the dark tokens; the dark texture is the same in both themes.
 
-## Logo animations (owner, 2026-10-27)
+## Logo animations
 The top-left masthead BB in the top bar animates while the app works, a different movement per job
 (board `LogoAnimations`, CSS keyframes on the SVG parts). Every one stops and shows the still logo
 under `prefers-reduced-motion: reduce`, and the status is always also said in words.

@@ -5,6 +5,9 @@ description: How the "Ask your bookmarks" LangGraph agent is structured and how 
 
 # "Ask your bookmarks" agent
 
+**Phase 4, not built yet.** None of the files below exist; this is the planned structure. Update
+this skill as the agent is built.
+
 ## Mental model
 An agent is a loop: **LLM decides → maybe calls tools → sees results → decides again → final answer**.
 - `ai/agent/manual_loop.py`: a hand-written version of this loop, for learning only. Read it first.

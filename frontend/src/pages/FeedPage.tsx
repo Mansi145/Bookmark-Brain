@@ -2,9 +2,11 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
-import type { Bookmark, BookmarkPage, FacetCount, Facets, FeedSection, ReadState } from '../api/types'
+import type { Bookmark, BookmarkPage, FacetCount, Facets, FeedSection, ReadState, SearchResults } from '../api/types'
 import BookmarkDetail from '../components/BookmarkDetail'
 import Newspaper, { FrontPageLoading, SectionSheet } from '../components/Newspaper'
+import SearchSheet from '../components/SearchSheet'
+import { searchCount } from '../lib/format'
 import { groupBySaveDate, startOfWeek, type Edition } from '../lib/editions'
 
 // Earlier's pages (design board Main): 30 briefs each, newest first.
@@ -19,6 +21,8 @@ export default function FeedPage({ section }: { section: FeedSection }) {
   const browser = params.get('browser')
   // Reading state (main feed only): all | unread | read.
   const readState = section === 'main' ? (params.get('state') as ReadState | null) : null
+  // A search (?q=…, from the top bar's field) replaces the feed in place, sidebar filters and all.
+  const query = (section === 'main' && params.get('q')?.trim()) || null
 
   const facets = useFacets(section)
 
@@ -35,6 +39,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
 
   const feed = useInfiniteQuery({
     queryKey: ['bookmarks', { section, folder, browser, readState, weekStart }],
+    enabled: !query,
     queryFn: ({ pageParam }) => {
       const query = withFilters(new URLSearchParams({ limit: '30', section }))
       if (pageParam) query.set('cursor', pageParam)
@@ -49,7 +54,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
 
   const earlier = useQuery({
     queryKey: ['bookmarks', 'earlier', { folder, browser, readState, weekStart, page: earlierPage }],
-    enabled: weekStart !== null,
+    enabled: weekStart !== null && !query,
     queryFn: () => {
       const query = withFilters(
         new URLSearchParams({ section, limit: String(EARLIER_PAGE_SIZE), page: String(earlierPage) }),
@@ -61,6 +66,26 @@ export default function FeedPage({ section }: { section: FeedSection }) {
     placeholderData: keepPreviousData,
     refetchInterval: (query) => pollInterval(query.state.data?.items ?? [], query.state.dataUpdateCount),
   })
+
+  // Under 'bookmarks' like the feed, so a summary or "Mark as read" updates the results in place.
+  const search = useQuery({
+    queryKey: ['bookmarks', 'search', { query, folder, browser }],
+    enabled: query !== null,
+    queryFn: () => {
+      const params = new URLSearchParams({ q: query! })
+      if (folder) params.set('folder', folder)
+      if (browser) params.set('browser', browser)
+      return api.get<SearchResults>(`/api/search?${params}`)
+    },
+    staleTime: 30_000, // Back to a search you just made shows it straight away
+    refetchInterval: (q) => pollInterval(q.state.data?.items ?? [], q.state.dataUpdateCount),
+  })
+  // Clear search goes back to the feed, keeping the sidebar's filters.
+  const feedWithFilters = new URLSearchParams()
+  if (folder) feedWithFilters.set('folder', folder)
+  if (browser) feedWithFilters.set('browser', browser)
+  const clearSearch = { pathname: '/', search: feedWithFilters.toString() }
+  const searchStatus = search.data ? 'success' : search.isError ? 'error' : 'pending'
 
   // A page past the end (bookmarks were removed, or an old link): go to the last page instead.
   const earlierTotal = earlier.data?.total ?? 0
@@ -139,8 +164,21 @@ export default function FeedPage({ section }: { section: FeedSection }) {
 
       <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-3.5 wide:p-6">
         <div className="mb-[22px]">
-          <h1 className="font-serif text-[40px] leading-[1.1] font-bold tracking-[-0.015em]">{TITLES[section]}</h1>
-          {facets.data && (
+          <h1 className="font-serif text-[40px] leading-[1.1] font-bold tracking-[-0.015em]">
+            {query ? 'Search results' : TITLES[section]}
+          </h1>
+          {query && (
+            <p className="mt-2 text-sm text-ink2">
+              {searchStatus === 'pending' && 'Searching your bookmarks…'}
+              {searchStatus === 'error' && 'Search didn’t finish'}
+              {search.data && searchCount(search.data.items.length, search.data.more)}
+              {' · '}
+              <Link to={clearSearch} className="font-medium text-ink">
+                Clear search
+              </Link>
+            </p>
+          )}
+          {!query && facets.data && (
             <p className="mt-2 text-sm text-ink2">
               {facets.data.total} {facets.data.total === 1 ? 'bookmark' : 'bookmarks'}
               {isFirstRun && ' · no browser connected yet'}
@@ -149,25 +187,39 @@ export default function FeedPage({ section }: { section: FeedSection }) {
           )}
         </div>
 
-        {!isFirstRun && <FeedViewsBar section={section} readState={readState} />}
+        {!isFirstRun && !query && <FeedViewsBar section={section} readState={readState} />}
 
         {(folder || browser) && (
           <div className="mb-4 flex items-center gap-2 text-sm text-ink2">
             Showing {[browser, folder].filter(Boolean).join(' · ')}
-            <button onClick={() => setParams({})} className="cursor-pointer border-0 bg-transparent text-ink underline">
+            <button
+              onClick={() => setParams(query ? { q: query } : {})}
+              className="cursor-pointer border-0 bg-transparent text-ink underline"
+            >
               Clear
             </button>
           </div>
         )}
 
-        {isFirstRun && <FirstRun />}
-        {isEmpty && <EmptyState section={section} />}
+        {query && (
+          <SearchSheet
+            query={query}
+            status={searchStatus}
+            items={search.data?.items ?? []}
+            more={search.data?.more ?? false}
+            onRetry={() => search.refetch()}
+            clearTo={clearSearch}
+          />
+        )}
+
+        {!query && isFirstRun && <FirstRun />}
+        {!query && isEmpty && <EmptyState section={section} />}
         {feed.isError && <p className="text-dead-fg">Couldn't load bookmarks: {feed.error.message}</p>}
 
         {/* Everything is a newspaper (board Main): the feed as editions, the two sections as one
             sheet each. */}
-        {section === 'main' && feed.isPending && !isFirstRun && <FrontPageLoading />}
-        {section === 'main' && (
+        {section === 'main' && !query && feed.isPending && !isFirstRun && <FrontPageLoading />}
+        {section === 'main' && !query && (
           <Newspaper
             editions={editions}
             earlier={{ page: earlierPage, total: earlierTotal, pageSize: EARLIER_PAGE_SIZE }}
@@ -178,7 +230,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
           <SectionSheet {...SHEETS[section]} count={facets.data?.total ?? bookmarks.length} items={bookmarks} />
         )}
 
-        <div ref={sentinel} className="py-7 text-center text-sm text-ink2">
+        <div ref={sentinel} hidden={query !== null} className="py-7 text-center text-sm text-ink2">
           {((section !== 'main' && feed.isPending) || isFetchingNextPage) && 'Loading more…'}
         </div>
       </main>

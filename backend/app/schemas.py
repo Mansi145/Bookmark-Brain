@@ -1,6 +1,7 @@
 """Request/response shapes for the API (validated by FastAPI, shown in /docs)."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,6 +24,7 @@ class UserOut(ORMModel):
     email: str
     name: str | None
     avatar_url: str | None
+    providers: list[Literal["google", "github"]]  # how the account signs in, for Settings
 
 
 # --- Extension tokens -------------------------------------------------------
@@ -119,6 +121,19 @@ class BookmarkPage(BaseModel):
     items: list[BookmarkOut]
     next_cursor: str | None
     total: int | None = None  # only for numbered pages (`page=`): every match, for the pager
+
+
+class SearchResult(BookmarkOut):
+    # The summary (or, without one, the description) with each matched word between "\x02"
+    # and "\x03". None when the shown text has no matched word (e.g. a meaning-only match).
+    highlighted: str | None
+
+
+class SearchOut(BaseModel):
+    items: list[SearchResult]  # best first, at most 10
+    # More than 10 matched: the page says "Top 10 matches". Search never says how it matched
+    # (owner), so keyword-only results (meaning search unavailable) look the same.
+    more: bool
 
 
 class FacetCount(BaseModel):

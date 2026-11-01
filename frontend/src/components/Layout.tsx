@@ -9,6 +9,7 @@ import DevTools from './DevTools'
 import { LimitDialogHost } from './LimitDialog'
 import Logo from './Logo'
 import Nebula from './Nebula'
+import SearchField from './SearchField'
 
 // App shell (design board Main.dc.html): top bar on the dark Nude texture with white text, then
 // the page. The bar is on the texture in both themes, so its colours are fixed, not theme tokens.
@@ -37,34 +38,7 @@ export default function Layout({ user }: { user: User }) {
             <span className="font-serif text-[21px] font-bold tracking-[-0.01em]">Bookmark Brain</span>
           </Link>
 
-          {/* Search arrives in Phase 3; the box is here so the layout matches the design. */}
-          <form role="search" className="m-0 max-w-[560px] flex-[1_1_320px]" onSubmit={(e) => e.preventDefault()}>
-            <label
-              className="flex h-11 items-center gap-2.5 rounded-[10px] border border-white/[0.18] bg-[rgba(23,24,26,0.55)] pr-3 pl-3.5"
-              title="Search is coming soon"
-            >
-              <svg
-                aria-hidden
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#EFE8E2"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
-              <input
-                type="search"
-                disabled
-                aria-label="Search your bookmarks (coming soon)"
-                placeholder="Search by meaning or keyword… (soon)"
-                className="min-w-0 flex-1 border-0 bg-transparent text-on-texture outline-none placeholder:text-on-texture2"
-              />
-            </label>
-          </form>
+          <SearchField />
 
           {/* Tabs: Feed (Ask joins in Phase 4). Settings is in the account menu (owner). */}
           <nav aria-label="Main" className="ml-auto flex flex-wrap gap-1">

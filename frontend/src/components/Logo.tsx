@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 // "Masthead BB" (design board LogoFinal, see the ui-design skill): a backwards B and a B drawn as
 // shapes, sharing one spine, between newspaper rules on a cream tile. Same colours in both themes.
@@ -19,8 +19,11 @@ const TILE = '#F4EDE4'
 const ACCENT = '#503931'
 const INK = '#141516'
 
-/** Page back: summarising. Rewind: a page loading. Hourglass: looking for an archived copy. */
-export type LogoMotion = 'page-back' | 'rewind' | 'hourglass'
+/**
+ * Page back: summarising. Rewind: a page loading. Hourglass: looking for an archived copy.
+ * Lens: a search running.
+ */
+export type LogoMotion = 'page-back' | 'rewind' | 'hourglass' | 'lens'
 
 // Turning around the middle of the drawing (100, 100), where the two B's share their spine.
 const AROUND_SPINE = 'transform-view origin-center'
@@ -54,6 +57,7 @@ export default function Logo({
   if (motion && motion !== last) setLast(motion)
   const shown = motion ?? last
   const scale = small ? 1.14 : undefined
+  const tile = useId() // the lens is clipped to the tile; ids must be unique on the page
 
   return (
     <svg
@@ -89,6 +93,20 @@ export default function Logo({
         <g fill={ACCENT} transform={lettersScale(scale)} className="motion-reduce:hidden">
           <g className={`${AROUND_SPINE} animate-page-back`}>
             <path fillRule="evenodd" d={B} />
+          </g>
+        </g>
+      )}
+
+      {/* A brown lens with a short handle slides over the letters and back, clipped to the tile.
+          translateX is in the drawing's own units (0-200), so it's the same at any size. */}
+      {shown === 'lens' && (
+        <g clipPath={`url(#${tile})`} className="motion-reduce:hidden">
+          <clipPath id={tile}>
+            <rect width="200" height="200" rx={small ? 34 : 22} />
+          </clipPath>
+          <g className="transform-view origin-top-left animate-lens">
+            <circle cx="62" cy="96" r="30" fill="#FFFFFF" fillOpacity="0.35" stroke={ACCENT} strokeWidth="7" />
+            <path d="M84 118 L104 138" stroke={ACCENT} strokeWidth="9" strokeLinecap="round" />
           </g>
         </g>
       )}

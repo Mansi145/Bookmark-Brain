@@ -115,6 +115,17 @@
       transform: rotate(180deg);
     }
   }
+  /* Searching, "Lens": a lens slides over the letters and back, as if reading them. */
+  --animate-lens: lens 2.2s ease-in-out infinite;
+  @keyframes lens {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(76px);
+    }
+  }
 }
 
 /* Dark theme, "warm charcoal" (owner, ui-design skill): lifted, slightly warm greys with off-white

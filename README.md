@@ -13,11 +13,11 @@ It's a personal learning project for integrating AI agents into a real full-stac
 | 0 | Foundations: monorepo, FastAPI, Postgres + pgvector, Alembic, React app | ✅ Done |
 | 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
 | 2 | Background job queue, page fetching, on-demand AI summaries (a fallback chain of free models), daily limit with a Limit reached dialog | ✅ Done (v0.2.0) |
-| 3 | Hybrid search: keyword + semantic (embeddings) | Planned |
+| 3 | Hybrid search: keyword + semantic (embeddings) | In progress (embeddings and the search API are done; the search pages are next) |
 | 4 | "Ask your bookmarks" chat agent (LangGraph) | Planned |
 | 5–7 | Auto-tags, regular dead-link re-checks, weekly digest | Planned (Dead links, Find archived copy and read / unread are already in) |
 | 8 | Deploy (Render + Neon + Vercel), CI | Planned |
-| UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done (GitHub sign-in planned) |
+| UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done |
 
 The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](docs/PLAN.md).
 
@@ -29,9 +29,10 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
  React app ──(session cookie, REST)──► FastAPI ──► Postgres (+ pgvector)
                                           │  └────► Resend (the "limit reached" email to the maintainer)
                                           │
-                       in-process job worker (jobs table): fetch page → summarise (on demand) → embed (Phase 3)
+                       in-process job worker (jobs table): fetch page → embed → summarise (on demand) → embed again
                                           ▼
-              Gemini → second Gemini model → OpenRouter → NVIDIA NIM → Groq   (fallback chain)
+              summaries: Gemini → second Gemini model → OpenRouter → NVIDIA NIM → Groq   (fallback chain)
+              embeddings (pages and search queries): Gemini
 ```
 
 - **The extension** is the only part that can read your bookmarks; browsers don't let websites do it. On first run it sends your whole bookmark tree, then only the changes (added, edited, moved, removed). An hourly full sync catches anything it missed.
@@ -40,6 +41,7 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
 - **Sign-in:** the web app signs in with Google and gets an httpOnly session cookie. The extension uses a personal access token that it receives through **one-click connect**: the popup opens the web app's `/connect` page, which creates the token and hands it to the extension. Only a hash of the token is stored.
 - **Slow work runs in the background.** Fetching pages and AI summaries run as rows in a `jobs` table, processed by a worker inside the API. Syncs stay fast, jobs survive restarts, and failures are retried. The server only fetches public addresses, so a bookmark can't make it probe its own network.
 - **Summaries on demand, from free models.** *Summarise* queues a job; the worker tries free models in order through LangChain's `.with_fallbacks()` (two Gemini models, OpenRouter, NVIDIA NIM, Groq), skipping any provider without a key. Each URL is summarised once and shared. Each user has a daily limit; hitting it opens a dialog that can email the maintainer (at most once a day per user).
+- **Search by keyword and by meaning.** Each page is turned into an embedding (a list of numbers that captures what it's about) as soon as it's fetched, and again once it's summarised. A search runs two queries over your own bookmarks, Postgres full-text search for your words and pgvector for pages close in meaning, and merges them with Reciprocal Rank Fusion into the best 10. If the embedding model is unavailable, the keyword matches come back on their own. Searches don't count toward the daily AI limit.
 - **Your data is yours.** Settings → Account downloads everything as a JSON file or deletes the account. Both work only from the web app's session, never with an extension token.
 - **A newspaper, text first.** The feed is your own front page: editions by when you saved things, the newest unread stories biggest, and only the top story shows the page's own preview image.
 
@@ -51,7 +53,7 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
 | Database | PostgreSQL 16 + pgvector (Docker locally, Neon in production) |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, React Router |
 | Extension | WXT (Manifest V3), works in Chrome, Edge, Brave and Firefox |
-| AI | LangChain with a fallback chain of free models (Gemini, OpenRouter, NVIDIA NIM, Groq); LangGraph agent and LangSmith tracing planned |
+| AI | LangChain with a fallback chain of free models (Gemini, OpenRouter, NVIDIA NIM, Groq); Gemini embeddings in pgvector for search; LangGraph agent and LangSmith tracing planned |
 | Email | Resend (free plan), one HTTPS call |
 | Tooling | pytest, ruff, oxlint |
 
@@ -66,13 +68,15 @@ bookmark_brain/
 │   │   ├── db.py             async engine + session dependency
 │   │   ├── models.py         users, api_tokens, documents, bookmarks, bookmark_sources, jobs, ai_usage
 │   │   ├── schemas.py        request/response models
-│   │   ├── auth/             Google token check, session JWTs, access tokens
-│   │   ├── api/              routes: health, auth, tokens, sync, bookmarks, usage, account
+│   │   ├── auth/             Google token check, GitHub sign-in, session JWTs, access tokens
+│   │   ├── api/              routes: health, auth, tokens, sync, bookmarks, search, usage, account
 │   │   ├── services/         URL normalisation, sync/merge, safe page fetcher, text extraction, sign-in
-│   │   │                     detection, Wayback Machine, site icons, preview images, daily limit, email
-│   │   ├── ai/               llm.py (the model fallback chain), chains.py, prompts/
+│   │   │                     detection, Wayback Machine, site icons, preview images, daily limit, email,
+│   │   │                     hybrid search
+│   │   ├── ai/               llm.py (the model fallback chain, the embedder), embedding.py, chains.py, prompts/
 │   │   └── worker.py         background job queue + worker
 │   ├── alembic/              database migrations
+│   ├── scripts/              explore_search.py (dev only)
 │   └── tests/                pytest (uses a separate test database)
 ├── frontend/                 React web app
 │   └── src/
@@ -129,11 +133,14 @@ The API runs at http://localhost:8000, with the background job worker running in
 | `FRONTEND_ORIGIN` | always | `http://localhost:5173` |
 | `JWT_SECRET` | sign-in | generate with `openssl rand -hex 32` |
 | `GOOGLE_CLIENT_ID` | sign-in | your OAuth client ID |
-| `GOOGLE_API_KEY` | summaries | Gemini key from Google AI Studio (the first two models in the chain) |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in | a GitHub OAuth App (github.com/settings/developers) with the callback URL `http://localhost:8000/api/auth/github/callback`; leave empty and the GitHub button says it isn't available |
+| `API_ORIGIN` | GitHub sign-in | where the browser reaches the API, `http://localhost:8000` |
+| `GOOGLE_API_KEY` | summaries, search | Gemini key from Google AI Studio (the first two models in the chain, and embeddings) |
 | `OPENROUTER_API_KEY` | optional | OpenRouter's free models, next in the chain |
 | `NVIDIA_API_KEY` | optional | NVIDIA NIM (hosts DeepSeek for free), after OpenRouter |
 | `GROQ_API_KEY` | optional | the last fallback. A provider without a key is skipped |
 | `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `GROQ_MODEL` | optional | override the models (defaults `gemini-3.5-flash-lite`, `gemini-2.5-flash`, `nvidia/nemotron-3.5-super-vl:free`, `deepseek-ai/deepseek-v4.1-flash`, `openai/gpt-oss-120b`) |
+| `GEMINI_EMBEDDING_MODEL` | optional | the embedding model (default `gemini-embedding-2`). Changing it means re-embedding every page |
 | `LANGSMITH_API_KEY` | Phase 4 | optional tracing |
 | `AI_DAILY_LIMIT_PER_USER` | summaries | summaries each user may start per UTC day (default 50); protects the shared free-tier quota |
 | `RESEND_API_KEY` / `MAINTAINER_EMAIL` | optional | "Notify the maintainer" in the Limit reached dialog ([Resend](https://resend.com), free 100 emails a day). Without your own domain, `MAINTAINER_EMAIL` must be the address you signed up to Resend with. `EMAIL_FROM` overrides the sender |
@@ -209,6 +216,11 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET | `/health` | none | liveness check |
 | GET | `/health/db` | none | database + pgvector check |
 | POST | `/api/auth/google` | none | exchange a Google ID token for a session cookie |
+| GET | `/api/auth/github?next=…` | none | start GitHub sign-in (redirects to GitHub) |
+| GET | `/api/auth/github/callback` | none | GitHub sends the browser back here; sets the session cookie (or, when linking, adds GitHub to the account) and returns to `next` |
+| POST | `/api/auth/google/link` | cookie only | Settings: add a Google account (its ID token) to the signed-in account |
+| GET | `/api/auth/github/link?next=…` | cookie only | Settings: start linking GitHub to the signed-in account (redirects to GitHub) |
+| DELETE | `/api/auth/{google,github}/link` | cookie only | Settings: unlink a sign-in method (never the last one) |
 | POST | `/api/auth/logout` | none | clear the session cookie |
 | GET | `/api/me` | cookie or token | current user |
 | GET / POST | `/api/tokens` | cookie or token | list / create extension tokens |
@@ -220,6 +232,7 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | POST | `/api/bookmarks/{id}/find-archive` | cookie or token | look up a dead link on the Wayback Machine (queues a job) |
 | GET / PATCH | `/api/bookmarks/{id}` | cookie or token | one bookmark (detail panel) / mark it read or unread |
 | POST | `/api/bookmarks/{id}/summarise` | cookie or token | AI summary on demand (`again=true` to redo); cached per URL, counted against the daily limit |
+| GET | `/api/search` | cookie or token | hybrid search over your bookmarks: `q`, optional `folder` and `browser`; returns the best 10 (`items`, with matched words marked) and `more` when more matched |
 | GET | `/api/usage` | cookie or token | today's summaries used, the daily limit, when it resets |
 | POST | `/api/usage/notify-maintainer` | cookie or token | email the owner that this user hit today's limit (once a day per user; 409 if not at the limit, 503 if email isn't set up, 502 if Resend refused) |
 | POST | `/api/usage/dev/use-up`, `/api/usage/dev/reset` | cookie or token | local testing only: use up or reset today's limit (404 unless `DEV_TOOLS=true`) |

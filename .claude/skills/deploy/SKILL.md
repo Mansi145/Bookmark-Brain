@@ -5,6 +5,9 @@ description: Deploying Bookmark Brain to Render (FastAPI), Neon (Postgres + pgve
 
 # Deploy
 
+**Not deployed yet (Phase 8).** This is the plan; update it with what actually happened when
+deploying.
+
 ## Neon (database)
 1. Create project → enable pgvector (the first migration runs `CREATE EXTENSION vector`).
 2. Use the pooled URL for the app (`postgresql+asyncpg://…-pooler…?ssl=require`) and the direct URL for migrations.
@@ -17,6 +20,9 @@ description: Deploying Bookmark Brain to Render (FastAPI), Neon (Postgres + pgve
 - Health check path: `/health` (must be cheap: no DB or LLM calls).
 - Env vars: everything in the `dev-setup` skill, with prod values; `FRONTEND_ORIGIN=https://<app>.vercel.app`,
   `SESSION_COOKIE_SECURE=true`, `SESSION_COOKIE_SAMESITE=none`, `WORKER_ENABLED=true`.
+  GitHub sign-in needs **its own production OAuth App** (GitHub allows one callback URL per app):
+  callback `https://<api>.onrender.com/api/auth/github/callback`, then `GITHUB_CLIENT_ID`,
+  `GITHUB_CLIENT_SECRET` and `API_ORIGIN=https://<api>.onrender.com`.
   `RESEND_API_KEY` + `MAINTAINER_EMAIL` turn on the Limit reached email (without them the button
   answers 503). The OpenRouter / NVIDIA / Groq keys are optional fallbacks. **Never set
   `DEV_TOOLS`** in production: it lets any user reset their own daily AI limit.
@@ -30,15 +36,17 @@ description: Deploying Bookmark Brain to Render (FastAPI), Neon (Postgres + pgve
 ## Vercel (frontend)
 - Import repo, root dir `frontend/`, framework Vite.
 - Env: `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID`.
-- SPA rewrite: `vercel.json` → `{"rewrites":[{"source":"/(.*)","destination":"/"}]}`.
+- SPA rewrite: add `frontend/vercel.json` (it doesn't exist yet) →
+  `{"rewrites":[{"source":"/(.*)","destination":"/"}]}`.
 
 ## Cross-site auth gotchas
 Frontend (vercel.app) and API (onrender.com) are on different sites:
 - Session cookie: `Secure; HttpOnly; SameSite=None`; CORS `allow_credentials=True` with an explicit origin (no `*`).
 - Add both the Vercel URL and localhost to the Google OAuth client's authorised JavaScript origins.
 
-## Scheduled jobs
-GitHub Actions cron (`.github/workflows/cron.yml`) calls `POST /internal/digest` and `POST /internal/link-check` with header `X-Cron-Secret: $INTERNAL_CRON_SECRET`.
+## Scheduled jobs (planned, Phases 6–7)
+A GitHub Actions cron (`.github/workflows/cron.yml`, not written yet) will call `POST /internal/digest`
+and `POST /internal/link-check` with header `X-Cron-Secret: $INTERNAL_CRON_SECRET`.
 
 ## Extension
 - Before building: add `https://<app>.vercel.app/connect*` to `matches` in

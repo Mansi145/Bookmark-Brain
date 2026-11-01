@@ -6,8 +6,8 @@ import { shownBookmarks } from '../lib/cache'
 
 /**
  * What the top-bar logo is doing (ui-design skill, "Logo animations"): Hourglass while we look
- * for an archived copy, Page back while a summary is being made, Rewind while a page loads. One
- * at a time, in that order, so the more specific job wins.
+ * for an archived copy, Page back while a summary is being made, Lens while a search runs,
+ * Rewind while a page loads. One at a time, in that order, so the more specific job wins.
  *
  * Summarise and Find archived copy count from the click (the request, by its mutation key) until
  * the bookmark says the job is over: the server answers at once with "working" / "checking" while
@@ -22,9 +22,14 @@ export function useLogoMotion(): LogoMotion | null {
   // A page loading: a query with nothing to show yet (the first feed load, another Earlier
   // page). Polling and "Loading more…" don't count; they already have something on screen.
   const loading = useIsFetching({ predicate: (query) => query.state.data === undefined }) > 0
+  // A search with no results on screen yet (each new query is a new cache entry). Refreshing
+  // results that are already shown doesn't count.
+  const searching =
+    useIsFetching({ queryKey: ['bookmarks', 'search'], predicate: (query) => query.state.data === undefined }) > 0
 
   if (lookingUp || archiveJob) return 'hourglass'
   if (summarising || summaryJob) return 'page-back'
+  if (searching) return 'lens'
   if (loading) return 'rewind'
   return null
 }

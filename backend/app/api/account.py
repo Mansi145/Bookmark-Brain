@@ -54,7 +54,7 @@ async def export_data(user: WebUser, session: SessionDep):
     now = datetime.now(UTC)
     data = {
         "exported_at": now.isoformat(),
-        "account": {"name": user.name, "email": user.email, "signed_in_with": "google"},
+        "account": {"name": user.name, "email": user.email, "signed_in_with": user.providers},
         "bookmarks": [
             {
                 "title": b.title,

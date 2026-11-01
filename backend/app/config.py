@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     # Auth (Phase 1)
     jwt_secret: str = ""
     google_client_id: str = ""
+    # GitHub sign-in (app/auth/github.py): an OAuth App from github.com/settings/developers.
+    # Its "Authorization callback URL" must be API_ORIGIN + /api/auth/github/callback, and GitHub
+    # allows one callback per app, so production needs an OAuth App of its own. Leave these empty
+    # and the GitHub button says sign-in with GitHub isn't available.
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    # Where the browser reaches this API, for that callback URL.
+    api_origin: str = "http://localhost:8000"
     session_days: int = 30
     # Local dev: frontend and API are both on localhost, so Lax + non-secure works.
     # Production (vercel.app -> onrender.com is cross-site): set Secure=true, SameSite=none.
@@ -42,6 +50,10 @@ class Settings(BaseSettings):
     nvidia_model: str = "deepseek-ai/deepseek-v4.1-flash"
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
+    # Embeddings for search (llm.get_embedder): Gemini only, same key. There's no fallback
+    # provider, because vectors from different models can't be compared: when this model is
+    # down, search uses keywords alone. Changing it means re-embedding every page.
+    gemini_embedding_model: str = "gemini-embedding-2"
     # Summaries a user may start per UTC day. The free quotas are per API key, so all users
     # share them; this stops one person from using up the day.
     ai_daily_limit_per_user: int = 50

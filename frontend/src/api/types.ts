@@ -1,10 +1,13 @@
 // Mirrors backend/app/schemas.py. Keep the two in sync.
 
+export type Provider = 'google' | 'github'
+
 export type User = {
   id: number
   email: string
   name: string | null
   avatar_url: string | null
+  providers: Provider[] // how the account signs in, for Settings
 }
 
 export type ApiToken = {
@@ -53,6 +56,18 @@ export type BookmarkPage = {
   items: Bookmark[]
   next_cursor: string | null
   total?: number | null // only for numbered pages (`page=`): every match, for the pager
+}
+
+/** A search result: a bookmark, plus its shown text with the matched words marked. */
+export type SearchResult = Bookmark & {
+  /** The summary (or description) with each matched word between "\u0002" and "\u0003"; null
+   * when the shown text has no matched word (e.g. a meaning-only match). */
+  highlighted: string | null
+}
+
+export type SearchResults = {
+  items: SearchResult[] // best first, at most 10
+  more: boolean // more than 10 matched: "Top 10 matches" (search never says how it matched)
 }
 
 export type FacetCount = { value: string; count: number }
