@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What have I saved about Postgres indexes?",
+    "expect": ["https://use-the-index-luke.com/", "https://www.postgresql.org/docs/current/indexes.html"]
+  },
+  {
+    "question": "Which articles explain React hooks?",
+    "expect": ["https://react.dev/reference/react/hooks"]
+  },
+  {
+    "question": "What have I saved about growing tomatoes?",
+    "expect": []
+  }
+]

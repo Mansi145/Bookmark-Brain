@@ -14,6 +14,7 @@ os.environ["DATABASE_URL"] = f"postgresql+asyncpg://bb:bb@localhost:5432/{TEST_D
 os.environ["JWT_SECRET"] = "test-secret-" + "x" * 32
 os.environ["GOOGLE_CLIENT_ID"] = "test-client-id"
 os.environ["WORKER_ENABLED"] = "false"  # tests run jobs explicitly with run_once()
+os.environ["LANGSMITH_TRACING"] = "false"  # never send the fake models' runs to LangSmith
 
 import asyncpg  # noqa: E402
 import pytest  # noqa: E402
