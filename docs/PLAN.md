@@ -145,7 +145,7 @@ Planned:
 - ✅ The top-bar logo animates while the app works: Page back while summarising, Rewind while a page loads, Hourglass while the Wayback Machine is asked.
 - *You'll learn:* prompts, structured output, fallbacks, cost and quota control, async job processing.
 
-**Phase 3: Hybrid search.** Built in this order:
+**Phase 3: Hybrid search. ✅ Released in v0.3.0.** Built in this order:
 1. **Exploration script** (`backend/scripts/explore_search.py`, dev only): runs the real search on the local database and shows, for each result, its keyword place, its meaning place and similarity, and its merged score. It first showed what "close" means for real bookmarks (unrelated pages 0.45–0.64, real matches 0.68 and up); now it's for tuning the keyword weight and, later, the cutoff.
 2. **Migration 0009**: `embedding vector(768)`, `embedding_model`, `embedded_at` and a generated `tsv` column on `documents`; a GIN index on `tsv` and an HNSW index on `embedding` (cosine); one `embed_pages` job queued to embed every page fetched before this.
 3. **`embed_pages` job**: a page waits for it while `embedded_at` is null. `fetch_page` leaves it waiting when it finishes a page, as do `find_archive` (an archived copy's text) and `summarise` (a new summary), and each makes sure one job is queued (`queue_embedding`). The job embeds up to 50 waiting pages per request and queues itself again while more wait. Text in: title + description + the start of the page text; title + summary + key points once summarised; title + description for pages we couldn't read (the saved title when there's no description); nothing for sign-in pages we couldn't read. A rate limit makes it wait a minute without using up an attempt (for up to a day); a page left without an embedding is still found by keyword.
@@ -155,7 +155,7 @@ Planned:
 7. **If results still need help** (owner: measure the steps above first): embeddings at the model's full 3,072 numbers instead of 768 (pgvector's index then needs its `halfvec` type, since `vector` indexes stop at 2,000), and splitting long pages into pieces that are embedded separately (Phase 4's agent needs those pieces anyway, to quote passages).
 - *You'll learn:* embeddings, cosine similarity, vector indexes (HNSW), full-text search, rank fusion.
 
-**Phase 4: "Ask your bookmarks" agent (LangGraph).**
+**Phase 4: "Ask your bookmarks" agent (LangGraph). ✅ Released in v0.3.0** (the 10-question eval and LangSmith tracing are still to come).
 - Tools: `search_bookmarks(query)` and `read_bookmark(bookmark_id)` (built), each limited to the current user's bookmarks; the user comes from the run's config, never from the model. A tag tool waits for Phase 5's tags.
 - Before using LangGraph, a plain-Python tool-calling loop in `ai/agent/manual_loop.py` (built; for learning only) shows what LangGraph does for you. Run it on your own bookmarks with `uv run python -m app.ai.agent.manual_loop "question"`.
 - Graph (built: `ai/agent/state.py`, `graph.py`; `uv run python -m scripts.ask "question"` prints each step): `agent` node (LLM with tools bound) ↔ `tools` node (ToolNode), with a conditional edge on whether the model requested tool calls, and a limit of 12 steps. Memory lasts only while a chat is open, for follow-ups; long-term, only each chat's first question is stored (owner, 2026-11-01). Answers cite bookmark ids, which open the detail panel.
