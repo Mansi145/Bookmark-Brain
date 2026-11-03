@@ -4,13 +4,12 @@ import { useNavigate } from 'react-router'
 import { api, API_URL } from '../api/client'
 import type { Account, User } from '../api/types'
 import { useSignOut } from '../hooks/useSignOut'
-import { PROVIDER_NAMES } from '../lib/format'
 import Avatar from './Avatar'
-import { GitHubMark, GoogleMark } from './ProviderMarks'
 import SignInMethods from './SignInMethods'
 
-// Settings → Account (design boards SettingsAccount, SettingsAccountLinked, SettingsAccountDark,
-// SettingsAccountDelete): Your account (who's signed in, Sign out), Sign-in methods (link or unlink
+// Settings → Account (design boards SettingsAccount, SettingsAccountGithub, SettingsAccountLinked,
+// SettingsAccountLinkError, SettingsAccountDelete and their dark versions): Your account (who's
+// signed in, Sign out), Sign-in methods (link or unlink
 // Google and GitHub, SignInMethods), Download my data (a JSON file) and Delete account, which asks
 // for DELETE to be typed. These account actions only work with the web app's session cookie, never
 // an extension token (backend app/api/account.py and app/api/auth.py).
@@ -42,16 +41,6 @@ export default function AccountSettings({ user }: { user: User }) {
           <div className="min-w-0 flex-[1_1_220px]">
             <div className="text-base font-semibold">{user.name ?? user.email}</div>
             <div className="truncate text-sm text-ink2">{user.email}</div>
-            {/* Every provider linked to the account (owner): either button signs in. */}
-            <div className="mt-1 flex items-center gap-1.5 text-[13px] text-ink2">
-              {user.providers.includes('google') && <GoogleMark />}
-              {user.providers.includes('github') && (
-                <span className="text-ink">
-                  <GitHubMark />
-                </span>
-              )}
-              Signed in with {user.providers.map((p) => PROVIDER_NAMES[p]).join(' and ')}
-            </div>
           </div>
           <button
             type="button"

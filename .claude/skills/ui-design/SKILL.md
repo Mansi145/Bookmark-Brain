@@ -373,22 +373,29 @@ radius 12 px, Aleo 21 px headings:
   button in `deadFg`.
 - **No AI usage section** (owner): users aren't shown AI usage at all. The only hint is the
   free-plan note and, when it happens, the Limit reached dialog.
-- **Account** (`SettingsAccount`, `SettingsAccountLinked`, `SettingsAccountDark`; Settings
-  `section="account"`, `providers` google / github / both), four cards:
-  - **Your account**: 56 px avatar initial on `accent`, name, email, then one 13 px `ink2` line with
-    every provider linked to the account: the 14 px marks first (Google's four-colour G, then the
-    Octocat in `ink`, never white, on the card) and "Signed in with Google", "Signed in with GitHub"
-    or "Signed in with Google and GitHub" (owner: the same verified email is one account); an
-    outlined **Sign out** button, and "Your name and picture come from your Google or GitHub
-    account. Change them there."
-  - **Sign-in methods** (owner, 2026-11-01; built ahead of its board): "Either one signs you in to
-    this account.", then a row per provider like Connected browsers (`line` divider, 20 px mark in a
-    36 px box, Octocat in `ink`): name, a 13 px `ink2` line "Linked", "Linked · your only sign-in
-    method" or "Not linked", and on the right **Unlink** (text button in `deadFg`, like Revoke;
-    hidden for the only method left) or **Link**: Google's own button (`filled_black`, medium,
-    "Continue with Google") / an outlined 36 px "Link" for GitHub. A problem shows as one 13 px
-    `deadFg` line under the rows ("That GitHub account has its own Bookmark Brain account, so it
-    can't be linked here.", "Linking GitHub was cancelled.", …).
+- **Account** (`SettingsAccount`, `SettingsAccountGithub`, `SettingsAccountLinked`,
+  `SettingsAccountLinkError`, each with a dark board; Settings `section="account"`, `providers`
+  google / github / both, `linkError`), four cards:
+  - **Your account**: 56 px avatar initial on `accent`, name, email, an outlined **Sign out**
+    button, and "Your name and picture come from your Google or GitHub account. Change them there."
+    No provider line here: the next card shows it.
+  - **Sign-in methods** (owner, 2026-11-03): "Either one signs you in to this account." (14 px
+    `ink2`), then a row each for Google and GitHub, split by a `line` divider. Each row has the 20 px
+    mark in a 36 px `surface` box (1 px `line`, radius 10 px; the Octocat in `ink`), the name
+    (weight 600), and a 13 px `ink2` status: "Linked", "Linked · your only sign-in method" or "Not
+    linked". On the right:
+    - **Linked**: **Unlink**, a text button in `deadFg` like Revoke. It's hidden on the only method
+      left, so nobody can lock themselves out.
+    - **Not linked**: a dark 40 px button, the same for both providers. Google's is Google's own
+      button (its library: `filled_black`, size large, "Continue with Google"), because only that
+      button returns a sign-in we can verify. GitHub's is ours, drawn to match: "Continue with
+      GitHub", `#141516` with a 1 px `#8E918F` border and the white Octocat, like the sign-up
+      page's buttons.
+    - Linking works even when the emails differ (the same verified email joins automatically).
+      A provider account that has its own Bookmark Brain account can't be linked. A problem is one
+      13 px `deadFg` line (weight 500, `role="alert"`) under the rows, above a `line` divider,
+      e.g. "That GitHub account has its own Bookmark Brain account, so it can't be linked here."
+      (`SettingsAccountLinkError`).
   - **Download my data**: "A JSON file with your bookmarks, folders, browsers, read states, tags and
     their summaries. It's ready in a few seconds." + **Download my data** (`ink`, download icon).
   - **Delete account** (heading in `deadFg`): "Permanently deletes your account, your bookmarks, read
