@@ -1,7 +1,9 @@
 """Per-user daily AI limit (AI_DAILY_LIMIT_PER_USER), counted per UTC day in `ai_usage`.
 
-Only summaries that will actually call a model count. Opening a summary someone else
-already made (documents are shared) is free.
+Summaries and Ask questions share it (the design: "AI features share a small daily limit").
+Only summaries that will actually call a model count; opening a summary someone else already
+made (documents are shared) is free. Each Ask question counts once, however many model calls
+the agent makes to answer it. Searches never count (they're throttled instead).
 
 The same row records when the user was first refused that day and when they told the
 maintainer about it (the Limit reached dialog), so the owner can see who runs out and when.
@@ -33,8 +35,9 @@ async def summaries_used(session: AsyncSession, user_id: int) -> int:
     return used or 0
 
 
-async def take_summary(session: AsyncSession, user_id: int) -> bool:
-    """Count one summary for today, unless the limit is reached. True if it was counted.
+async def take_ai_use(session: AsyncSession, user_id: int) -> bool:
+    """Count one AI use (a summary or an Ask question) for today, unless the limit is reached.
+    True if it was counted.
 
     One statement does the check and the increment, so two clicks at the same moment can't
     both slip under the limit: the UPDATE only happens while the count is below it.
@@ -55,12 +58,22 @@ async def take_summary(session: AsyncSession, user_id: int) -> bool:
     return (await session.scalar(statement)) is not None
 
 
+async def give_back(session: AsyncSession, user_id: int) -> None:
+    """Undo one take_ai_use when the work never happened: every AI service failed, and the "AI
+    is busy" dialog promises that doesn't use up the daily limit. The caller commits."""
+    await session.execute(
+        update(AiUsage)
+        .where(AiUsage.user_id == user_id, AiUsage.day == today(), AiUsage.summaries > 0)
+        .values(summaries=AiUsage.summaries - 1)
+    )
+
+
 async def limit_reached(session: AsyncSession, user_id: int) -> bool:
     return await summaries_used(session, user_id) >= get_settings().ai_daily_limit_per_user
 
 
 async def note_limit_reached(session: AsyncSession, user_id: int) -> None:
-    """Remember when a Summarise was first refused today (the time goes in the email)."""
+    """Remember when Summarise or Ask was first refused today (the time goes in the email)."""
     statement = (
         insert(AiUsage)
         .values(user_id=user_id, day=today(), limit_reached_at=func.now())
@@ -77,7 +90,7 @@ async def claim_notice(session: AsyncSession, user_id: int) -> datetime | None:
     """Mark today's maintainer email as sent, if it isn't yet. Returns when the user hit the
     limit (now, if that wasn't recorded), or None if they already told the maintainer today.
 
-    Like take_summary, one statement checks and sets, so a double click sends one email.
+    Like take_ai_use, one statement checks and sets, so a double click sends one email.
     """
     statement = (
         insert(AiUsage)

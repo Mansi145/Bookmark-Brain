@@ -115,6 +115,37 @@
       transform: rotate(180deg);
     }
   }
+  /* Ask's writing cursor (board AskWriting): on, off, every second. */
+  --animate-blink: blink 1s steps(1) infinite;
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  /* Asking, "Conversation": a B lifts 8/200 of the mark and settles, every 1.2 s (the left B
+     starts half a cycle later, so they take turns). */
+  --animate-conversation: conversation 1.2s ease-in-out infinite;
+  @keyframes conversation {
+    0%,
+    50%,
+    100% {
+      transform: translateY(0);
+    }
+    25% {
+      transform: translateY(-8px);
+    }
+  }
+  /* Searching, "Lens": a lens slides over the letters and back, as if reading them. */
+  --animate-lens: lens 2.2s ease-in-out infinite;
+  @keyframes lens {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(76px);
+    }
+  }
 }
 
 /* Dark theme, "warm charcoal" (owner, ui-design skill): lifted, slightly warm greys with off-white

@@ -14,8 +14,8 @@ The owner is learning how to integrate AI agents. When you implement something, 
 - **Hosting**: Render (API, kept warm by a `/health` ping) + Neon + Vercel.
 
 ## Conventions
-- All LLM/embedding access goes through `backend/app/ai/llm.py`. See the `llm-patterns` skill.
-- Agent tools live in `backend/app/ai/agent/tools.py` and **must be scoped to the current user**. See the `langgraph-agent` skill.
+- All LLM/embedding access goes through `backend/app/ai/llm.py`; search queries are embedded through `services/search.py`'s cache and throttle. See the `llm-patterns` skill.
+- Agent tools (Phase 4) go in `backend/app/ai/agent/tools.py` and **must be scoped to the current user**. See the `langgraph-agent` skill.
 - Slow work (fetching pages, summaries, embeddings, tagging, link checks) runs as rows in the `jobs` table, processed by `backend/app/worker.py`, never inside a request handler. See the `background-jobs` skill.
 - The server fetches user-supplied URLs **only** through `backend/app/services/fetch.py` (blocks private addresses, SSRF). Never use a bare `httpx` client for that.
 - `documents` are shared per normalised URL (AI output is cached there); `bookmarks` are per user; `bookmark_sources` record which browser install has each bookmark.
@@ -28,7 +28,7 @@ The owner is learning how to integrate AI agents. When you implement something, 
 ## Git
 - Commit, push or open PRs only when the owner asks.
 - No AI attribution anywhere: no `Co-Authored-By` lines and no mention of an assistant in commits, PR descriptions or the changelog.
-- Feature branch → PR into `development`; `development` → `main` for releases. Every change gets a `CHANGELOG.md` entry. See the `git-workflow` skill.
+- Feature branch → PR into `development`; `development` → `main` for releases. Every user-visible change gets a one-line `CHANGELOG.md` entry (Keep a Changelog: Added / Changed / Removed / Fixed …); implementation details go in the PR. See the `git-workflow` skill.
 
 ## Skills
 - `dev-setup`: run everything locally

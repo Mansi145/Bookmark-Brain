@@ -235,7 +235,8 @@ async def test_server_errors_retry_then_give_up(client):
     assert doc.status == DocumentStatus.failed
     async with TestSession() as session:
         jobs = (await session.execute(select(Job.kind, Job.status))).all()
-    assert jobs == [("fetch_page", JobStatus.done)]  # gave up cleanly; nothing sent to archive.org
+    # Gave up cleanly, and nothing was sent to archive.org (the page still gets an embedding).
+    assert set(jobs) == {("fetch_page", JobStatus.done), ("embed_pages", JobStatus.queued)}
 
 
 # --- Dead links and the Wayback Machine (only when the user asks) --------------

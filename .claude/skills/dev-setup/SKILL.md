@@ -79,11 +79,14 @@ token* in the popup. Details in the `extension` skill.
 | `FRONTEND_ORIGIN` | CORS, e.g. `http://localhost:5173` |
 | `JWT_SECRET` | signs session JWTs (`openssl rand -hex 32`) |
 | `GOOGLE_CLIENT_ID` | Google Sign-In (OAuth client, type "Web") |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in: an OAuth App from github.com/settings/developers, homepage `http://localhost:5173`, callback `http://localhost:8000/api/auth/github/callback`. Empty = the button says it isn't available |
+| `API_ORIGIN` | where the browser reaches the API (default `http://localhost:8000`), for GitHub's callback URL |
 | `SESSION_COOKIE_SECURE`, `SESSION_COOKIE_SAMESITE` | prod only: `true` / `none` (cross-site) |
 | `WORKER_ENABLED` | run the in-process job worker (default `true`) |
-| `GOOGLE_API_KEY` | Gemini chat + embeddings (from AI Studio), Phase 2+ |
+| `GOOGLE_API_KEY` | Gemini summaries, page embeddings and search (from AI Studio) |
 | `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `GROQ_API_KEY` | the rest of the summary fallback chain (OpenRouter's free models, NVIDIA NIM, Groq); each is optional, a provider without a key is skipped |
 | `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `GROQ_MODEL` | override the models (defaults in `app/config.py`; see the `llm-patterns` skill) |
+| `GEMINI_EMBEDDING_MODEL` | the embedding model (default `gemini-embedding-2`); changing it means re-embedding every page |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT` | agent/chain traces |
 | `AI_DAILY_LIMIT_PER_USER` | summaries per user per UTC day (default 50) |
 | `RESEND_API_KEY`, `MAINTAINER_EMAIL`, `EMAIL_FROM` | "Notify the maintainer" emails (Resend, free plan); optional, the button answers 503 without them. Without a verified domain `MAINTAINER_EMAIL` must be your Resend sign-up address |
@@ -100,6 +103,12 @@ Extension (`extension/.env`, optional): `WXT_API_URL`, `WXT_APP_URL` (defaults a
 curl -s localhost:8000/health/db
 docker compose exec db psql -U bb bookmark_brain -c "select kind, status, count(*) from jobs group by 1, 2"
 docker compose exec db psql -U bb bookmark_brain -c "select count(*) from bookmarks where deleted_at is null"
+```
+Dev scripts that call the real models (free tier), run from `backend/`:
+```bash
+uv run python -m scripts.explore_search "postgres indexes"   # how search ranks, and what the cutoff drops
+uv run python -m scripts.ask "what have I saved about postgres?"   # the agent, step by step
+uv run python -m app.ai.agent.manual_loop "question"   # the hand-written agent loop
 ```
 
 ## Flaky tests on WSL2: the clock jumps

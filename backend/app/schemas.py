@@ -1,6 +1,7 @@
 """Request/response shapes for the API (validated by FastAPI, shown in /docs)."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,6 +24,7 @@ class UserOut(ORMModel):
     email: str
     name: str | None
     avatar_url: str | None
+    providers: list[Literal["google", "github"]]  # how the account signs in, for Settings
 
 
 # --- Extension tokens -------------------------------------------------------
@@ -121,6 +123,19 @@ class BookmarkPage(BaseModel):
     total: int | None = None  # only for numbered pages (`page=`): every match, for the pager
 
 
+class SearchResult(BookmarkOut):
+    # The summary (or, without one, the description) with each matched word between "\x02"
+    # and "\x03". None when the shown text has no matched word (e.g. a meaning-only match).
+    highlighted: str | None
+
+
+class SearchOut(BaseModel):
+    items: list[SearchResult]  # best first, at most 10
+    # More than 10 matched: the page says "Top 10 matches". Search never says how it matched
+    # (owner), so keyword-only results (meaning search unavailable) look the same.
+    more: bool
+
+
 class FacetCount(BaseModel):
     value: str
     count: int
@@ -176,3 +191,29 @@ class AccountDeleteIn(BaseModel):
     """The typed confirmation, checked here too, not only in the dialog."""
 
     confirm: str
+
+
+# --- Ask (api/chat.py) ----------------------------------------------------------
+
+
+class ChatIn(BaseModel):
+    """A question for the agent. Without chat_id it starts a new chat; with the chat_id the
+    first answer's "chat" event gave, it's a follow-up in that chat."""
+
+    message: str = Field(min_length=1, max_length=2_000)
+    chat_id: str | None = Field(default=None, max_length=64)
+
+
+class AskedQuestionOut(ORMModel):
+    """One of the Ask tab's Recent questions."""
+
+    question: str
+    asked_at: datetime
+
+
+class ChatSourcesOut(BaseModel):
+    """The final "done" event: the answer and the bookmarks behind it."""
+
+    answer: str  # citations as [bookmark:ID]
+    sources: list[BookmarkOut]  # cited, in the order first cited
+    also_found: list[BookmarkOut]  # found by the tools but not cited

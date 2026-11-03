@@ -1,10 +1,13 @@
 // Mirrors backend/app/schemas.py. Keep the two in sync.
 
+export type Provider = 'google' | 'github'
+
 export type User = {
   id: number
   email: string
   name: string | null
   avatar_url: string | null
+  providers: Provider[] // how the account signs in, for Settings
 }
 
 export type ApiToken = {
@@ -55,6 +58,18 @@ export type BookmarkPage = {
   total?: number | null // only for numbered pages (`page=`): every match, for the pager
 }
 
+/** A search result: a bookmark, plus its shown text with the matched words marked. */
+export type SearchResult = Bookmark & {
+  /** The summary (or description) with each matched word between "\u0002" and "\u0003"; null
+   * when the shown text has no matched word (e.g. a meaning-only match). */
+  highlighted: string | null
+}
+
+export type SearchResults = {
+  items: SearchResult[] // best first, at most 10
+  more: boolean // more than 10 matched: "Top 10 matches" (search never says how it matched)
+}
+
 export type FacetCount = { value: string; count: number }
 export type Facets = {
   total: number // bookmarks in this section
@@ -78,7 +93,20 @@ export type SyncSummary = {
   other_browsers: string[]
 }
 
-/** GET /api/usage: today's AI summaries for the signed-in user. */
+/** POST /api/chat's final "done" event: the answer and the bookmarks behind it. Mirrors ChatSourcesOut. */
+export type ChatSources = {
+  answer: string // citations as [bookmark:ID]
+  sources: Bookmark[] // cited, in the order first cited
+  also_found: Bookmark[] // found by the tools but not cited
+}
+
+/** GET /api/chat/recent: the first questions of the latest Ask chats. Mirrors AskedQuestionOut. */
+export type AskedQuestion = {
+  question: string
+  asked_at: string
+}
+
+/** GET /api/usage: today's AI uses (summaries and Ask questions) for the signed-in user. */
 export type Usage = {
   summaries_used: number
   summaries_limit: number

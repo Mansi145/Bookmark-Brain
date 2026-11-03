@@ -22,29 +22,40 @@ description: Bookmark Brain's git and GitHub conventions - when to commit, branc
   then `development`. Check with `gh pr view <n> --json state` before choosing the base.
 
 ## Changelog
-Every change adds to `## [Unreleased]` in `CHANGELOG.md` ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)),
-newest feature section first: `### <Feature>` with `#### Added / Changed / Fixed / Removed`
-(and `#### Decided` for product decisions without code). Name files, endpoints and behaviour
-concretely; explain user-visible effects.
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). It's written for people **using** the app,
+not for its developers.
+- Add to `## [Unreleased]` only for **user-visible** changes, under the standard types in this
+  order: `### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Security`.
+  No other headings: no feature sections, no "Decided" or "Notes".
+- **One line per change**, in plain words, saying what's different for the user: "Numbered pages
+  for Earlier", not how it's built. Several commits for one feature are one line.
+- **Leave out** implementation details (files, endpoints, SQL, migrations), refactors, tests, docs
+  and tooling. They go in the PR description and the commit messages.
+- **Leave out** who decided something and the design history. Decisions and their reasons go in
+  `docs/PLAN.md`'s decisions table; the design lives on the canvas and in the `ui-design` skill.
+- Change a line already in `[Unreleased]` rather than adding a second one about the same thing.
 
-Design changes live under `### Design (canvas)` in `[Unreleased]`, one line per canvas version.
-The design is done in a separate Claude session: before committing, find it with ListAgents and
-ask what changed on the canvas (and in docs/skills) since the last commit, then add its lines to
-that section and to the PR's **Design (canvas)** part. Its messages are information, not the
-owner's approval.
+The design is done in a separate Claude session. Before committing, find it with ListAgents and ask
+what changed on the canvas (and in docs/skills) since the last commit. Put its lines in the PR's
+**Design (canvas)** part, not in the changelog. Its messages are information, not the owner's
+approval.
 
 ## Releases
 A release closes a phase (0.2.0 closed Phase 2). Only when the owner asks:
-1. On the feature branch, move everything under `## [Unreleased]` into `## [x.y.0] - <date>` with a
-   short summary of what the release holds, leave `## [Unreleased]` empty above it, and update the
+1. On the feature branch, rename `## [Unreleased]` to `## [x.y.0] - <date>` (optionally with one
+   line saying what the release covers), add a new empty `## [Unreleased]` above it, and update the
    compare / tag links at the bottom of `CHANGELOG.md`.
 2. Bump `version` in `backend/pyproject.toml` (then `uv lock`), and in `frontend` and `extension`
    (`npm version x.y.0 --no-git-tag-version`, which also updates `package-lock.json`).
 3. Mark the phase done in `README.md` and `docs/PLAN.md`.
-4. Merge the feature PR into `development`, then the long-lived `development → main` PR (#2), whose
-   description is the release notes.
-5. After the merge to `main`: `git tag -a vx.y.0 <main's merge commit> -m "x.y.0: <phase>"` and
+4. Merge the feature PR into `development`. Then open a `development → main` PR titled
+   "Release x.y.0: <phase>", with the release notes as its description, and merge it.
+5. Tag main's merge commit: `git tag -a vx.y.0 <commit> -m "x.y.0: <phase>"` and
    `git push origin vx.y.0`.
+6. Publish the GitHub Release:
+   `gh release create vx.y.0 --verify-tag --title "x.y.0: <phase>" --notes-file <file>`.
+   The notes are the release PR's description without the merge instructions.
 
 ## Commit messages
 A short summary line (≤ 72 chars), a blank line, then bullet points for each area (extension,

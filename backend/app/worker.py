@@ -19,10 +19,12 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import httpx
-from sqlalchemy import and_, func, insert, or_, select, update
+from sqlalchemy import and_, exists, func, insert, literal, or_, select, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.ai import chains
+from app.ai import chains, llm
+from app.ai.embedding import embedding_text, saved_title
 from app.db import SessionLocal
 from app.models import Document, DocumentStatus, Job, JobStatus
 from app.services import archive, fetch
@@ -62,6 +64,23 @@ async def enqueue(session: AsyncSession, kind: str, payloads: list[dict]) -> Non
         await session.execute(insert(Job), [{"kind": kind, "payload": p} for p in payloads])
 
 
+async def queue_embedding(session: AsyncSession) -> None:
+    """Make sure an embed_pages job is queued, for the pages waiting to be embedded.
+
+    Call it after leaving a page with embedded_at null. One job works through every waiting
+    page in batches, so a big import is a handful of requests to the embedding model rather
+    than one per page. Only a *queued* job counts as already there: a running one may have
+    picked its pages before this transaction's page was ready.
+    """
+    already_queued = exists().where(Job.kind == "embed_pages", Job.status == JobStatus.queued)
+    await session.execute(
+        insert(Job).from_select(
+            ["kind", "payload"],
+            select(literal("embed_pages"), literal({}, JSONB)).where(~already_queued),
+        )
+    )
+
+
 # --- Handlers ------------------------------------------------------------------
 
 # A handler raises to have its job retried; anything it writes through `session` is
@@ -88,12 +107,13 @@ async def fetch_page(session: AsyncSession, job: Job, http: httpx.AsyncClient) -
         page = await fetch.fetch_page(document.url, http)
     except fetch.BlockedUrl:
         # Private address / dead domain: never retry, and no logo guess either.
-        _finish(document, DocumentStatus.failed, guess_icon=False)
+        await _finish(session, document, DocumentStatus.failed, guess_icon=False)
         return
     except fetch.TemporaryFetchError:
         if job.attempts < MAX_ATTEMPTS:
             raise  # try again later
-        _finish(document, DocumentStatus.failed)  # last try: give up so the feed stops waiting
+        # Last try: give up so the feed stops waiting.
+        await _finish(session, document, DocumentStatus.failed)
         return
 
     document.http_status = page.status_code
@@ -105,11 +125,12 @@ async def fetch_page(session: AsyncSession, job: Job, http: httpx.AsyncClient) -
     document.access = detect_access(document.url, page, has_article)
 
     if has_article:
-        _finish(document, DocumentStatus.fetched)  # (a paywalled teaser keeps access="paywall")
+        # (a paywalled teaser keeps access="paywall")
+        await _finish(session, document, DocumentStatus.fetched)
     elif page.status_code in (404, 410):
-        _finish(document, DocumentStatus.dead)
+        await _finish(session, document, DocumentStatus.dead)
     else:
-        _finish(document, DocumentStatus.failed)
+        await _finish(session, document, DocumentStatus.failed)
 
 
 async def find_image(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
@@ -149,7 +170,9 @@ async def find_archive(session: AsyncSession, job: Job, http: httpx.AsyncClient)
         html = await archive.fetch_snapshot(snapshot, http)
         if html is not None:
             document.icon_url = document.icon_url or find_icon(html, document.url)
-            await _read_article(document, html, "archive")
+            if await _read_article(document, html, "archive"):
+                document.embedded_at = None  # embed the archived copy's text instead
+                await queue_embedding(session)
             if is_paywalled(html):
                 document.access = PAYWALL  # e.g. a Medium members-only teaser
         document.archive_status = "found"
@@ -227,14 +250,74 @@ async def summarise(session: AsyncSession, job: Job, http: httpx.AsyncClient) ->
     document.summary_model = result.model
     document.summarised_at = datetime.now(UTC)
     document.summary_status = "done"
+    document.embedded_at = None  # embed the summary from now on (ai/embedding.py)
+    await queue_embedding(session)
 
 
-def _finish(document: Document, status: DocumentStatus, guess_icon: bool = True) -> None:
+# Pages per request to the embedding model (it takes up to 100).
+EMBED_BATCH = 50
+# A rate limit isn't a failure: the job waits it out, for up to a day (free daily quotas reset).
+EMBED_WAIT_SECONDS = 60
+EMBED_GIVE_UP_AFTER = timedelta(days=1)
+
+
+async def embed_pages(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
+    """Embed the pages waiting for it (embedded_at null), EMBED_BATCH per request.
+
+    Pages start waiting when fetch_page finishes them, when find_archive stores an archived
+    copy's text and after a new summary; each of those calls queue_embedding(). The text comes
+    from ai/embedding.py. Sign-in pages get no embedding, but embedded_at is set anyway so they
+    don't wait forever. Shared per URL, like summaries. If a full batch was waiting, more may
+    be, so the job queues another.
+    """
+    documents = (
+        await session.scalars(
+            select(Document)
+            .where(Document.embedded_at.is_(None), Document.status != DocumentStatus.pending)
+            .order_by(Document.id)
+            .limit(EMBED_BATCH)
+            .with_for_update(skip_locked=True)  # two jobs never take the same pages
+        )
+    ).all()
+
+    now = datetime.now(UTC)
+    to_embed: list[tuple[Document, str]] = []
+    for document in documents:
+        text = embedding_text(document, await saved_title(session, document.id))
+        document.embedded_at = now
+        if text is None:
+            document.embedding = None
+            document.embedding_model = None
+        else:
+            to_embed.append((document, text.text))
+
+    if to_embed:
+        embedder = llm.get_embedder()
+        try:
+            vectors = await embedder.aembed_documents([text for _, text in to_embed])
+        except llm.RateLimited as err:
+            if now - job.created_at < EMBED_GIVE_UP_AFTER:
+                raise RetryLater(EMBED_WAIT_SECONDS, "embedding model rate limit") from err
+            raise
+        for (document, _), vector in zip(to_embed, vectors, strict=True):
+            document.embedding = vector
+            document.embedding_model = embedder.model
+
+    if len(documents) == EMBED_BATCH:
+        await queue_embedding(session)
+
+
+async def _finish(
+    session: AsyncSession, document: Document, status: DocumentStatus, guess_icon: bool = True
+) -> None:
+    """Record how fetching went, and queue the page's embedding (whatever the outcome: even a
+    page we couldn't read has a title and maybe a description to search by meaning)."""
     document.status = status
     document.fetched_at = datetime.now(UTC)
     if guess_icon and document.icon_url is None:
         # The page didn't name a logo (or we couldn't read it): most sites serve /favicon.ico.
         document.icon_url = default_icon(document.url)
+    await queue_embedding(session)
 
 
 # kind -> handler
@@ -243,6 +326,7 @@ HANDLERS: dict[str, Handler] = {
     "find_archive": find_archive,
     "summarise": summarise,
     "find_image": find_image,
+    "embed_pages": embed_pages,
 }
 
 

@@ -5,6 +5,7 @@ import { sessionEnded } from './api/client'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import { useMe } from './hooks/useMe'
+import AskPage from './pages/AskPage'
 import ConnectPage, { ConnectSignedOutPage } from './pages/ConnectPage'
 import { ErrorPage, NotFoundPage, SignedOutPage, WakingUpPage } from './pages/ErrorPages'
 import FeedPage from './pages/FeedPage'
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="sign-in-required" element={<FeedPage section="sign_in" />} />
               <Route path="dead-links" element={<FeedPage section="dead" />} />
               <Route path="archive" element={<Navigate to="/dead-links" replace />} />
+              <Route path="ask" element={<AskPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="connect" element={<ConnectPage />} />

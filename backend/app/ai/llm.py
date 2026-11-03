@@ -13,16 +13,27 @@ that is much harder to break. The order:
 
 A provider without a key is left out. Each client retries only once itself: waiting out a
 long outage is the job queue's work (app/worker.py), and falling back fast matters more.
+
+Embeddings (get_embedder) are Gemini only, with no fallback: see GeminiEmbeddings.
 """
 
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types
+from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.models import EMBEDDING_DIMENSIONS
 
 TIMEOUT_SECONDS = 45
 TEMPERATURE = 0.2  # summaries should be faithful, not creative
@@ -79,9 +90,15 @@ def _models() -> list[BaseChatModel]:
     return models
 
 
-def get_chat_model() -> Runnable:
-    """A chat model that answers in free text (for the chat agent, later)."""
-    first, *rest = _models()
+def get_tool_model(tools: Sequence[BaseTool]) -> Runnable:
+    """A chat model that may ask to call `tools` (the chat agent, app/ai/agent/).
+
+    `bind_tools` sends each tool's name, argument schema and docstring with every request. The
+    model then answers either with text or with "tool calls": a tool name and arguments for us
+    to run. It never runs anything itself. Like structured output, tools have to be bound to
+    each model before `with_fallbacks`.
+    """
+    first, *rest = [m.bind_tools(tools) for m in _models()]
     return first.with_fallbacks(rest) if rest else first
 
 
@@ -121,3 +138,84 @@ def _require_parsed(out: dict) -> dict:
     if out.get("parsed") is None:
         raise UnparsedAnswer(str(out.get("parsing_error") or "no structured answer"))
     return out
+
+
+# --- Embeddings ----------------------------------------------------------------
+
+
+def get_embedder() -> "GeminiEmbeddings":
+    """The embedding model for search (GEMINI_EMBEDDING_MODEL)."""
+    s = get_settings()
+    if not s.google_api_key:
+        raise RuntimeError("Embeddings need GOOGLE_API_KEY")
+    return GeminiEmbeddings(s.gemini_embedding_model, s.google_api_key)
+
+
+class RateLimited(Exception):
+    """The provider said "too many requests" (HTTP 429): nothing is wrong, try again later."""
+
+
+def document_for_embedding(title: str | None, text: str) -> str:
+    """A page in the form gemini-embedding-2 expects for search: "title: … | text: …"."""
+    return f"title: {title or 'none'} | text: {text}"
+
+
+class GeminiEmbeddings(Embeddings):
+    """gemini-embedding-2 behind LangChain's `Embeddings` interface.
+
+    An embedding turns a text into a list of numbers (a vector), placed so that texts with
+    similar meaning get vectors pointing in similar directions. Search embeds the query and
+    compares it with every page's stored vector.
+
+    LangChain's own GoogleGenerativeAIEmbeddings always sends a `task_type`
+    (RETRIEVAL_DOCUMENT / RETRIEVAL_QUERY), which gemini-embedding-2 doesn't accept. This
+    model wants the task written into the text instead, so we call Google's SDK ourselves:
+    - a page is sent as "title: … | text: …" (format it with document_for_embedding)
+    - a query is sent as "task: search result | query: …" (embed_query adds that)
+    Each text goes in its own `Content`; a plain list would come back as one combined vector.
+    """
+
+    QUERY_PREFIX = "task: search result | query: "
+
+    def __init__(self, model: str, api_key: str):
+        self.model = model
+        self._client = genai.Client(
+            api_key=api_key, http_options=types.HttpOptions(timeout=TIMEOUT_SECONDS * 1000)
+        )
+        self._config = types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIMENSIONS)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Pages formatted with document_for_embedding(); one vector each (100 at most)."""
+        with _rate_limit_as_ours():
+            result = self._client.models.embed_content(
+                model=self.model, contents=_contents(texts), config=self._config
+            )
+        return [list(e.values) for e in result.embeddings]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed_documents([self.QUERY_PREFIX + text])[0]
+
+    async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
+        with _rate_limit_as_ours():
+            result = await self._client.aio.models.embed_content(
+                model=self.model, contents=_contents(texts), config=self._config
+            )
+        return [list(e.values) for e in result.embeddings]
+
+    async def aembed_query(self, text: str) -> list[float]:
+        return (await self.aembed_documents([self.QUERY_PREFIX + text]))[0]
+
+
+def _contents(texts: list[str]) -> list[types.Content]:
+    return [types.Content(parts=[types.Part(text=text)]) for text in texts]
+
+
+@contextmanager
+def _rate_limit_as_ours() -> Iterator[None]:
+    """Turn Google's 429 into RateLimited, so callers needn't know the SDK's error types."""
+    try:
+        yield
+    except genai_errors.APIError as err:
+        if err.code == 429:
+            raise RateLimited(str(err)) from err
+        raise

@@ -1,14 +1,25 @@
 import { GoogleLogin } from '@react-oauth/google'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { useLocation, useSearchParams } from 'react-router'
+import { api, API_URL } from '../api/client'
 import type { User } from '../api/types'
+import { GitHubMark } from './ProviderMarks'
 
 // The design's dark buttons with the real Google G and GitHub marks.
 //
 // Google: we use Google's own rendered button (theme "filled_black"), not a custom one. Only
 // Google's button returns the signed ID token our backend verifies, and Google's branding
 // rules ask for their button anyway.
-// GitHub: designed, but GitHub sign-in isn't built in the backend yet, so it's disabled.
+// GitHub: a plain link to the API, which sends the browser to GitHub and back (app/auth/github.py),
+// returning to this same page signed in, e.g. to /connect mid one-click connect. If it didn't
+// work, the API says why in ?github_error=….
+
+const GITHUB_ERRORS: Record<string, string> = {
+  cancelled: 'GitHub sign-in was cancelled.',
+  no_email: 'Your GitHub account needs a verified primary email address to sign in.',
+  unavailable: 'Sign-in with GitHub isn’t available right now.',
+  failed: 'Couldn’t sign in with GitHub. Please try again.',
+}
 
 export default function SignInButtons() {
   const queryClient = useQueryClient()
@@ -18,6 +29,14 @@ export default function SignInButtons() {
     mutationFn: (credential: string) => api.post<User>('/api/auth/google', { credential }),
     onSuccess: (user) => queryClient.setQueryData(['me'], user),
   })
+
+  const { pathname } = useLocation()
+  const [params] = useSearchParams()
+  const githubError = params.get('github_error')
+  const here = new URLSearchParams(params)
+  here.delete('github_error') // a second try shouldn't come back with the old error
+  const next = here.toString() ? `${pathname}?${here}` : pathname
+  const githubHref = `${API_URL}/api/auth/github?${new URLSearchParams({ next })}`
 
   return (
     <div>
@@ -30,21 +49,21 @@ export default function SignInButtons() {
           text="continue_with"
           shape="rectangular"
         />
-        <button
-          type="button"
-          disabled
-          title="GitHub sign-in is coming soon"
-          className="flex h-[52px] items-center gap-3 rounded-xl border border-[#8E918F] bg-[#141516] pr-[22px] pl-[18px] font-medium text-white opacity-60"
+        <a
+          href={githubHref}
+          className="flex h-[52px] items-center gap-3 rounded-xl border border-[#8E918F] bg-[#141516] pr-[22px] pl-[18px] font-medium text-white no-underline"
         >
-          <svg aria-hidden width="20" height="20" viewBox="0 0 16 16" fill="#FFFFFF">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
-          </svg>
+          <GitHubMark size={20} />
           Continue with GitHub
-          <span className="text-sm font-normal">(soon)</span>
-        </button>
+        </a>
       </div>
       {login.isPending && <p className="mt-3 text-sm">Signing in…</p>}
       {login.isError && <p className="mt-3 text-sm">Sign-in failed: {login.error.message}</p>}
+      {githubError && (
+        <p role="alert" className="mt-3 text-sm">
+          {GITHUB_ERRORS[githubError] ?? GITHUB_ERRORS.failed}
+        </p>
+      )}
     </div>
   )
 }

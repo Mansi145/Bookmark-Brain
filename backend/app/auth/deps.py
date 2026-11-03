@@ -41,15 +41,21 @@ async def get_current_user(request: Request, session: SessionDep) -> User:
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+async def find_web_user(request: Request, session: SessionDep) -> User | None:
+    """The user whose session cookie came with this request, or None."""
+    cookie = request.cookies.get(SESSION_COOKIE)
+    user_id = read_session_token(cookie) if cookie else None
+    return await session.get(User, user_id) if user_id is not None else None
+
+
 async def get_web_user(request: Request, session: SessionDep) -> User:
     """Like get_current_user, but only the web app's session cookie, never an extension token.
 
-    For account actions (download my data, delete account): a token pasted into a browser
-    extension shouldn't be able to export or wipe the whole account if it leaks.
+    For account actions (download my data, delete account, linking sign-in methods): a token
+    pasted into a browser extension shouldn't be able to export, wipe or take over the whole
+    account if it leaks.
     """
-    cookie = request.cookies.get(SESSION_COOKIE)
-    user_id = read_session_token(cookie) if cookie else None
-    user = await session.get(User, user_id) if user_id is not None else None
+    user = await find_web_user(request, session)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not signed in")
     return user

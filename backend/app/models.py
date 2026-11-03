@@ -16,8 +16,11 @@ expensive AI work done in later phases is cached once per URL.
 import enum
 from datetime import date, datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
+    Computed,
     Date,
     DateTime,
     Enum,
@@ -30,7 +33,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -42,13 +45,27 @@ class TimestampMixin:
 
 class User(TimestampMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "google_sub IS NOT NULL OR github_id IS NOT NULL", name="ck_users_has_provider"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    # Google's stable account id ("sub" claim). Emails can change; this can't.
-    google_sub: Mapped[str] = mapped_column(String(255), unique=True)
+    # How the account signs in: Google's stable account id ("sub" claim) and/or GitHub's numeric
+    # user id. Emails can change; these can't. One account can have both (same verified email,
+    # owner's decision), and always has at least one.
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True)
+    github_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     email: Mapped[str] = mapped_column(String(320))
     name: Mapped[str | None] = mapped_column(String(255))
     avatar_url: Mapped[str | None] = mapped_column(Text)
+
+    @property
+    def providers(self) -> list[str]:
+        """How this account can sign in, e.g. ["google", "github"] (shown in Settings)."""
+        linked = (("google", self.google_sub), ("github", self.github_id))
+        return [name for name, account_id in linked if account_id is not None]
 
 
 class ApiToken(TimestampMixin, Base):
@@ -74,8 +91,36 @@ class DocumentStatus(enum.StrEnum):
     dead = "dead"  # the page is gone (404 / 410)
 
 
+# How many numbers each page's embedding has. gemini-embedding-2 makes 3,072 by default; 768 is
+# Google's recommended smaller size: a quarter of the storage and faster comparisons for almost the
+# same quality. The model is asked for exactly this many (app/ai/llm.py), and changing it needs a
+# migration and re-embedding every page.
+EMBEDDING_DIMENSIONS = 768
+
+# Keyword search: the page's words, weighted so a match in the title (A) ranks above one in the
+# description, summary or key points (B), which ranks above one in the page text (C). The page
+# text is capped because a tsvector must stay under 1 MB.
+DOCUMENT_TSV = """
+setweight(to_tsvector('english', coalesce(title, '')), 'A')
+|| setweight(to_tsvector('english', coalesce(description, '') || ' ' || coalesce(summary, '')
+    || ' ' || coalesce(key_points::text, '')), 'B')
+|| setweight(to_tsvector('english', left(coalesce(content_text, ''), 100000)), 'C')
+"""
+
+
 class Document(TimestampMixin, Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("ix_documents_tsv", "tsv", postgresql_using="gin"),
+        # HNSW: a graph index that finds the nearest vectors without comparing every row.
+        # vector_cosine_ops makes it serve the cosine distance operator (<=>).
+        Index(
+            "ix_documents_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     normalized_url: Mapped[str] = mapped_column(Text, unique=True)
@@ -121,6 +166,21 @@ class Document(TimestampMixin, Base):
     summary_source: Mapped[str | None] = mapped_column(String(16))
     summary_model: Mapped[str | None] = mapped_column(String(64))  # which model answered
     summarised_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Meaning search: the page's embedding (app/ai/embedding.py decides which text), written by
+    # the embed_pages job and shared by everyone who saved this URL. Vectors from different
+    # models can't be compared, so the model is recorded. embedded_at null = waiting for the
+    # job; set with no embedding = nothing worth embedding (a sign-in page).
+    # Deferred: loaded only when asked for, so the feed doesn't carry 768 numbers per story.
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIMENSIONS), deferred=True
+    )
+    embedding_model: Mapped[str | None] = mapped_column(String(64))
+    embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Keyword search (DOCUMENT_TSV): Postgres keeps it up to date whenever the row changes.
+    tsv: Mapped[str] = mapped_column(
+        TSVECTOR, Computed(DOCUMENT_TSV, persisted=True), deferred=True
+    )
 
 
 class ReadState(enum.StrEnum):
@@ -207,7 +267,8 @@ class Job(TimestampMixin, Base):
 
 
 class AiUsage(Base):
-    """How many AI summaries a user started on a day (UTC), for AI_DAILY_LIMIT_PER_USER.
+    """How many AI uses (summaries and Ask questions) a user started on a day (UTC), for
+    AI_DAILY_LIMIT_PER_USER. The count is in `summaries`, named from before Ask shared it.
 
     The free Gemini and Groq quotas are per API key, so every user shares them; a per-user
     limit stops one person from using up everyone's day.
@@ -220,7 +281,23 @@ class AiUsage(Base):
     )
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     summaries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    # When a Summarise was first refused that day, and when the user emailed the maintainer
+    # When Summarise or Ask was first refused that day, and when the user emailed the maintainer
     # about it from the Limit reached dialog (at most once a day; see api/usage.py).
     limit_reached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     maintainer_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AskedQuestion(Base):
+    """The first question of an Ask chat, for the Ask tab's Recent questions (the last 3).
+
+    The owner's decision: only each chat's first question is kept, never the answers or the
+    follow-ups (those live in memory while the chat is open; ai/agent/chat.py). Only the latest
+    RECENT_QUESTIONS per user are kept (services/questions.py).
+    """
+
+    __tablename__ = "asked_questions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    question: Mapped[str] = mapped_column(Text)
+    asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
