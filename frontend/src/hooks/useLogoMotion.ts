@@ -2,12 +2,14 @@ import { notifyManager, useIsFetching, useIsMutating, useQueryClient } from '@ta
 import { useCallback, useSyncExternalStore } from 'react'
 import type { Bookmark } from '../api/types'
 import type { LogoMotion } from '../components/Logo'
+import { useAskWaiting } from '../lib/ask'
 import { shownBookmarks } from '../lib/cache'
 
 /**
  * What the top-bar logo is doing (ui-design skill, "Logo animations"): Hourglass while we look
- * for an archived copy, Page back while a summary is being made, Lens while a search runs,
- * Rewind while a page loads. One at a time, in that order, so the more specific job wins.
+ * for an archived copy, Page back while a summary is being made, Conversation from asking a
+ * question until its answer starts to appear, Lens while a search runs, Rewind while a page
+ * loads. One at a time, in that order, so the more specific job wins.
  *
  * Summarise and Find archived copy count from the click (the request, by its mutation key) until
  * the bookmark says the job is over: the server answers at once with "working" / "checking" while
@@ -19,6 +21,7 @@ export function useLogoMotion(): LogoMotion | null {
   const archiveJob = useAnyShownBookmark((b) => b.archive_status === 'checking')
   const summarising = useIsMutating({ mutationKey: ['summarise'] }) > 0
   const summaryJob = useAnyShownBookmark((b) => b.summary_status === 'working')
+  const asking = useAskWaiting()
   // A page loading: a query with nothing to show yet (the first feed load, another Earlier
   // page). Polling and "Loading more…" don't count; they already have something on screen.
   const loading = useIsFetching({ predicate: (query) => query.state.data === undefined }) > 0
@@ -29,6 +32,7 @@ export function useLogoMotion(): LogoMotion | null {
 
   if (lookingUp || archiveJob) return 'hourglass'
   if (summarising || summaryJob) return 'page-back'
+  if (asking) return 'conversation'
   if (searching) return 'lens'
   if (loading) return 'rewind'
   return null

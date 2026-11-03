@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Search your bookmarks from the top bar, by the words in them and by what they mean, showing up to 10 of the closest matches with the matched words highlighted. A search with no real match shows nothing rather than unrelated pages.
 - The logo also animates while a search runs.
+- Ask your bookmarks: ask a question and get an answer drawn only from the pages you saved, written as you watch, with each source linked. Follow-up questions work while the chat is open, Stop ends an answer early, and the Ask tab lists your last 3 questions to ask again.
+- The logo also animates while Ask works on an answer.
+- When every free AI service is busy, a dialog says so, and the question doesn't count towards the daily limit.
 - Sign in with GitHub. It opens the same account as Google when the verified email is the same, and Settings → Account links or unlinks either one.
 
 ## [0.2.0] - 2026-10-27

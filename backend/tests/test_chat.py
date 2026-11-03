@@ -149,7 +149,9 @@ async def test_each_question_counts_towards_the_daily_ai_limit(client, user, mon
     assert client.get("/api/usage").json()["summaries_used"] == 1
 
 
-async def test_says_so_when_no_model_can_answer(client, user, monkeypatch):
+async def test_says_ai_is_busy_and_gives_the_question_back_when_no_model_can_answer(
+    client, user, monkeypatch
+):
     def down():
         raise RuntimeError("every provider failed")
         yield
@@ -157,7 +159,8 @@ async def test_says_so_when_no_model_can_answer(client, user, monkeypatch):
     script(monkeypatch).messages = down()
 
     events = ask(client, "hello?")
-    assert events[-1] == ("error", {"message": "Couldn't answer right now"})
+    assert events[-1] == ("error", {"reason": "busy", "message": "Couldn't answer right now"})
+    assert client.get("/api/usage").json()["summaries_used"] == 0  # it didn't count
 
 
 async def test_only_from_the_web_app(client, anon_client):

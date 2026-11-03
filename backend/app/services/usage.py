@@ -58,6 +58,16 @@ async def take_ai_use(session: AsyncSession, user_id: int) -> bool:
     return (await session.scalar(statement)) is not None
 
 
+async def give_back(session: AsyncSession, user_id: int) -> None:
+    """Undo one take_ai_use when the work never happened: every AI service failed, and the "AI
+    is busy" dialog promises that doesn't use up the daily limit. The caller commits."""
+    await session.execute(
+        update(AiUsage)
+        .where(AiUsage.user_id == user_id, AiUsage.day == today(), AiUsage.summaries > 0)
+        .values(summaries=AiUsage.summaries - 1)
+    )
+
+
 async def limit_reached(session: AsyncSession, user_id: int) -> bool:
     return await summaries_used(session, user_id) >= get_settings().ai_daily_limit_per_user
 

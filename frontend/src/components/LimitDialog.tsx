@@ -1,27 +1,29 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import { limitHit } from '../lib/limit'
+import { limitHit, type LimitReason } from '../lib/limit'
 
 // Limit reached (design board LimitDialog): opens when Summarise, Re-summarise or Ask is refused
-// because today's shared AI allowance is used up. "Notify the maintainer" emails the owner the
-// user's account email and the time (POST /api/usage/notify-maintainer, sent with Resend).
+// because today's shared AI allowance is used up, or, in its "AI is busy" version (4 on the
+// board), when every free AI service failed. "Notify the maintainer" emails the owner the user's
+// account email and the time (POST /api/usage/notify-maintainer, sent with Resend).
 // States: default → Sending… → "Thanks, the maintainer knows". There's no "couldn't send"
 // screen (owner): if the email fails, the button simply comes back so they can press it again.
 
 /** Mounted once in the layout; opens whenever an AI action hits the limit. */
 export function LimitDialogHost() {
-  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState<LimitReason | null>(null)
   useEffect(() => {
-    const onHit = () => setOpen(true)
+    const onHit = (e: Event) => setReason((e as CustomEvent<LimitReason>).detail)
     limitHit.addEventListener('hit', onHit)
     return () => limitHit.removeEventListener('hit', onHit)
   }, [])
   // Mounted fresh each time, so it always opens in its default state.
-  return open ? <LimitDialog onClose={() => setOpen(false)} /> : null
+  return reason ? <LimitDialog key={reason} reason={reason} onClose={() => setReason(null)} /> : null
 }
 
-function LimitDialog({ onClose }: { onClose: () => void }) {
+function LimitDialog({ reason, onClose }: { reason: LimitReason; onClose: () => void }) {
+  const busy = reason === 'busy'
   const notify = useMutation({ mutationFn: () => api.post<void>('/api/usage/notify-maintainer') })
   const sent = notify.isSuccess
   const notifyButton = useRef<HTMLButtonElement>(null)
@@ -95,6 +97,12 @@ function LimitDialog({ onClose }: { onClose: () => void }) {
           >
             {sent ? (
               <path d="m5 12 4.5 4.5L19 7" />
+            ) : busy ? (
+              <>
+                <path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 9.5a4 4 0 0 1-.5 8.5z" />
+                <path d="M12 11v3" />
+                <path d="M12 16.5h.01" />
+              </>
             ) : (
               <>
                 <path d="M4 15a8 8 0 1 1 16 0" />
@@ -108,17 +116,20 @@ function LimitDialog({ onClose }: { onClose: () => void }) {
         {/* Announced when it changes to the "sent" text. */}
         <div aria-live="polite" className="flex flex-col gap-3">
           <h2 id="limit-title" className="mt-1 font-serif text-2xl leading-[1.2] font-bold">
-            {sent ? 'Thanks, the maintainer knows' : 'Limit reached'}
+            {sent ? 'Thanks, the maintainer knows' : busy ? 'AI is busy right now' : 'Limit reached'}
           </h2>
           {sent ? (
             <p className="m-0 text-ink2">
-              They've been emailed that today's limit was reached. Summaries and Ask come back at midnight UTC.
+              {busy
+                ? "They've been emailed that the AI services were busy. Try again in a few minutes."
+                : "They've been emailed that today's limit was reached. Summaries and Ask come back at midnight UTC."}
             </p>
           ) : (
             <>
               <p className="m-0 text-ink2">
-                Today's AI allowance has run out. Bookmark Brain is a personal learning project on free plans, so this
-                can happen early in the day. Summaries and Ask come back at midnight UTC.
+                {busy
+                  ? "The free AI services Bookmark Brain uses are all busy or down at the moment. This usually passes in a few minutes, and it doesn't use up your daily limit."
+                  : "Today's AI allowance has run out. Bookmark Brain is a personal learning project on free plans, so this can happen early in the day. Summaries and Ask come back at midnight UTC."}
               </p>
               <p className="m-0 font-semibold text-ink">Please click below to notify the maintainer.</p>
             </>
@@ -179,7 +190,9 @@ function LimitDialog({ onClose }: { onClose: () => void }) {
         </div>
         {!sent && (
           <p className="m-0 text-[13px] text-ink2">
-            Sends the maintainer your account email and the time you hit the limit.
+            {busy
+              ? 'Sends the maintainer your account email and the time.'
+              : 'Sends the maintainer your account email and the time you hit the limit.'}
           </p>
         )}
       </div>

@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import type { User } from '../api/types'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { api } from '../api/client'
+import type { AskedQuestion, User } from '../api/types'
 import { useLogoMotion } from '../hooks/useLogoMotion'
 import { useSignOut } from '../hooks/useSignOut'
 import { useTheme } from '../hooks/useTheme'
@@ -22,7 +24,8 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
 const FEED_PATHS = ['/', '/sign-in-required', '/dead-links']
 
 export default function Layout({ user }: { user: User }) {
-  const onFeed = FEED_PATHS.includes(useLocation().pathname)
+  const { pathname } = useLocation()
+  const onFeed = FEED_PATHS.includes(pathname)
   const motion = useLogoMotion()
 
   return (
@@ -40,11 +43,12 @@ export default function Layout({ user }: { user: User }) {
 
           <SearchField />
 
-          {/* Tabs: Feed (Ask joins in Phase 4). Settings is in the account menu (owner). */}
+          {/* Tabs: Feed · Ask (Digest joins in Phase 7). Settings is in the account menu (owner). */}
           <nav aria-label="Main" className="ml-auto flex flex-wrap gap-1">
             <NavLink to="/" className={() => tabClass({ isActive: onFeed })} aria-current={onFeed ? 'page' : undefined}>
               Feed
             </NavLink>
+            <AskTab current={pathname === '/ask'} />
           </nav>
           <Link
             to="/how-it-works"
@@ -107,17 +111,8 @@ function AccountMenu({ user }: { user: User }) {
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') return close(true)
-    if (e.key === 'Tab') return setOpen(false)
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-    e.preventDefault()
-    const items = [...(list.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])]
-    const at = items.indexOf(document.activeElement as HTMLElement)
-    items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
-  }
+  const onKeyDown = (e: React.KeyboardEvent) => menuKeys(e, list.current, close)
 
-  const item = 'flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 text-ink no-underline hover:bg-panel'
   return (
     <div ref={wrapper} className="relative">
       <button
@@ -189,6 +184,137 @@ function AccountMenu({ user }: { user: User }) {
       )}
     </div>
   )
+}
+
+/**
+ * The Ask tab (design board AskMenu): with no questions asked yet it just opens Ask. Otherwise
+ * it opens a 300 px dropdown under it: New chat, then "Recent questions", the first question of
+ * each of the last 3 chats (owner: only those are kept). Picking one opens Ask and asks it again
+ * for a fresh answer. Keyboard: like the account menu.
+ */
+function AskTab({ current }: { current: boolean }) {
+  const [open, setOpen] = useState(false)
+  const wrapper = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const list = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+  const recent = useQuery({
+    queryKey: ['ask', 'recent'],
+    queryFn: () => api.get<AskedQuestion[]>('/api/chat/recent'),
+  })
+  const questions = recent.data ?? []
+
+  const close = (refocus: boolean) => {
+    setOpen(false)
+    if (refocus) button.current?.focus()
+  }
+
+  useEffect(() => {
+    if (!open) return
+    list.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    const onClick = (e: MouseEvent) => !wrapper.current?.contains(e.target as Node) && setOpen(false)
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  // Ask reads what to do from the navigation's state: start afresh, or ask this question.
+  const go = (state: { newChat: true } | { ask: string }) => {
+    setOpen(false)
+    navigate('/ask', { state })
+  }
+
+  return (
+    <div ref={wrapper} className="relative">
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-current={current ? 'page' : undefined}
+        onClick={() => (questions.length ? setOpen(!open) : go({ newChat: true }))}
+        className={`cursor-pointer border-0 bg-transparent font-[inherit] ${tabClass({ isActive: current })}`}
+      >
+        Ask
+        <svg
+          aria-hidden
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-on-texture2"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          ref={list}
+          role="menu"
+          aria-label="Ask"
+          onKeyDown={(e) => menuKeys(e, list.current, close)}
+          className="absolute top-full left-0 z-30 mt-2.5 w-[300px] max-w-[calc(100vw-32px)] rounded-[14px] border border-line bg-surface p-2 text-sm text-ink shadow-[0_18px_50px_rgba(0,0,0,0.28)]"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => go({ newChat: true })}
+            className={`cursor-pointer border-0 bg-transparent text-left font-[inherit] font-semibold ${item}`}
+          >
+            <svg
+              aria-hidden
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              className="flex-none"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New chat
+          </button>
+          <div aria-hidden className="my-1.5 h-px bg-line" />
+          <p className="mx-2.5 mt-1.5 mb-1 text-xs font-semibold tracking-[0.06em] text-ink2 uppercase">
+            Recent questions
+          </p>
+          {questions.map((q) => (
+            <button
+              key={q.question}
+              type="button"
+              role="menuitem"
+              onClick={() => go({ ask: q.question })}
+              className={`cursor-pointer border-0 bg-transparent text-left font-[inherit] ${item}`}
+            >
+              <MenuIcon>
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <path d="M3 4v5h5" />
+              </MenuIcon>
+              <span className="min-w-0 truncate">{q.question}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const item = 'flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 text-ink no-underline hover:bg-panel'
+
+/** Menu keys: Escape closes (focus back on the button), Tab leaves, arrows move between items. */
+function menuKeys(e: React.KeyboardEvent, list: HTMLElement | null, close: (refocus: boolean) => void) {
+  if (e.key === 'Escape') return close(true)
+  if (e.key === 'Tab') return close(false)
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+  e.preventDefault()
+  const items = [...(list?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])]
+  const at = items.indexOf(document.activeElement as HTMLElement)
+  items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
 }
 
 function MenuIcon({ children }: { children: React.ReactNode }) {
