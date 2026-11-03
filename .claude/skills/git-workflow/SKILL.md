@@ -49,13 +49,19 @@ A release closes a phase (0.2.0 closed Phase 2). Only when the owner asks:
 2. Bump `version` in `backend/pyproject.toml` (then `uv lock`), and in `frontend` and `extension`
    (`npm version x.y.0 --no-git-tag-version`, which also updates `package-lock.json`).
 3. Mark the phase done in `README.md` and `docs/PLAN.md`.
-4. Merge the feature PR into `development`. Then open a `development → main` PR titled
-   "Release x.y.0: <phase>", with the release notes as its description, and merge it.
+4. Merge the feature PR into `development` **before** opening the `development → main` PR (open
+   it only after, or GitHub links the two into a stack, and merging `main` first leaves the
+   release commit behind). Then open a `development → main` PR titled "Release x.y.0: <phase>",
+   with the release notes as its description, and merge it.
 5. Tag main's merge commit: `git tag -a vx.y.0 <commit> -m "x.y.0: <phase>"` and
    `git push origin vx.y.0`.
 6. Publish the GitHub Release:
    `gh release create vx.y.0 --verify-tag --title "x.y.0: <phase>" --notes-file <file>`.
    The notes are the release PR's description without the merge instructions.
+7. Bring `main` back into `development` (`git checkout development && git merge origin/main`,
+   then push). GitHub's merge commit exists only on `main`; without this, `development` falls
+   behind `main` and the next release PR is flagged as needing a rebase. Never rebase
+   `development` itself: merged PRs point at its commits.
 
 ## Commit messages
 A short summary line (≤ 72 chars), a blank line, then bullet points for each area (extension,

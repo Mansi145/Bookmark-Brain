@@ -102,4 +102,4 @@ hold a real key); it records each request's texts in `calls` (pages) and `querie
 setting `error` makes requests fail.
 
 ## Observability
-With `LANGSMITH_TRACING=true`, every chain/agent run shows up in LangSmith. Add `run_name` and `metadata={"user_id": ..., "doc_id": ...}` in `config` so traces are easy to find.
+With `LANGSMITH_TRACING=true` and a key in `backend/.env` (local dev only, never production; see the `langgraph-agent` skill's Tracing), every chain/agent run shows up in LangSmith. Add `run_name` and `metadata={"user_id": ..., "doc_id": ...}` in `config` so traces are easy to find.

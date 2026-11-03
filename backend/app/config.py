@@ -4,6 +4,7 @@ pydantic-settings validates types at startup, so a missing or malformed
 variable fails loudly on boot instead of halfway through a request.
 """
 
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -70,10 +71,31 @@ class Settings(BaseSettings):
     # trying the Limit reached dialog). Never set it in production.
     dev_tools: bool = False
 
+    # Tracing (LangSmith): records every agent and chain run, step by step, at
+    # smith.langchain.com. For local dev and the eval only (owner, 2026-11-03): leave these unset
+    # in production, where traces would carry users' questions and the text of their pages.
+    langsmith_api_key: str = ""
+    langsmith_tracing: bool = False
+    langsmith_project: str = "bookmark-brain"
+
     # Phase 7: cron endpoints.
     internal_cron_secret: str = ""
 
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    _share_tracing_settings(settings)
+    return settings
+
+
+def _share_tracing_settings(settings: Settings) -> None:
+    """Hand the LangSmith settings to LangChain, which reads them from the environment only.
+
+    pydantic-settings reads backend/.env into Settings without touching os.environ, so without
+    this the keys in .env would never reach LangChain and nothing would be traced.
+    """
+    if settings.langsmith_tracing and settings.langsmith_api_key:
+        os.environ["LANGSMITH_TRACING"] = "true"
+        os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
+        os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
