@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03
+
+Covers Phases 3 and 4 of the [plan](docs/PLAN.md): search and Ask your bookmarks.
+
 ### Added
 
 - Search your bookmarks from the top bar, by the words in them and by what they mean, showing up to 10 of the closest matches with the matched words highlighted. A search with no real match shows nothing rather than unrelated pages.
@@ -39,5 +43,6 @@ First release, covering Phases 0–2 of the [plan](docs/PLAN.md).
 - A logo that animates while a summary is being made, a page loads, or the Wayback Machine is checked.
 - Sign-up and How it works pages.
 
-[Unreleased]: https://github.com/Mansi145/Bookmark-Brain/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Mansi145/Bookmark-Brain/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Mansi145/Bookmark-Brain/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Mansi145/Bookmark-Brain/releases/tag/v0.2.0
