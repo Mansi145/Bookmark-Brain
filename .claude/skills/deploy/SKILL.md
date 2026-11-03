@@ -18,7 +18,8 @@ deploying.
 - Build: `pip install uv && uv sync --frozen`
 - Start: `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - Health check path: `/health` (must be cheap: no DB or LLM calls).
-- Env vars: everything in the `dev-setup` skill, with prod values; `FRONTEND_ORIGIN=https://<app>.vercel.app`,
+- Env vars: everything in the `dev-setup` skill, with prod values, **except `LANGSMITH_*`** (tracing is
+  local and eval only: traces would carry users' questions and page text); `FRONTEND_ORIGIN=https://<app>.vercel.app`,
   `SESSION_COOKIE_SECURE=true`, `SESSION_COOKIE_SAMESITE=none`, `WORKER_ENABLED=true`.
   GitHub sign-in needs **its own production OAuth App** (GitHub allows one callback URL per app):
   callback `https://<api>.onrender.com/api/auth/github/callback`, then `GITHUB_CLIENT_ID`,

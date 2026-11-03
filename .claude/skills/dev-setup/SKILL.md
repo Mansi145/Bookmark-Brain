@@ -87,7 +87,7 @@ token* in the popup. Details in the `extension` skill.
 | `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, `GROQ_API_KEY` | the rest of the summary fallback chain (OpenRouter's free models, NVIDIA NIM, Groq); each is optional, a provider without a key is skipped |
 | `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `GROQ_MODEL` | override the models (defaults in `app/config.py`; see the `llm-patterns` skill) |
 | `GEMINI_EMBEDDING_MODEL` | the embedding model (default `gemini-embedding-2`); changing it means re-embedding every page |
-| `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT` | agent/chain traces |
+| `LANGSMITH_API_KEY`, `LANGSMITH_TRACING=true`, `LANGSMITH_PROJECT` | agent and chain traces at smith.langchain.com (free: 5,000 traces a month, kept 14 days), and the Ask eval (`uv run python -m scripts.eval_agent`); local only, never set in production |
 | `AI_DAILY_LIMIT_PER_USER` | summaries per user per UTC day (default 50) |
 | `RESEND_API_KEY`, `MAINTAINER_EMAIL`, `EMAIL_FROM` | "Notify the maintainer" emails (Resend, free plan); optional, the button answers 503 without them. Without a verified domain `MAINTAINER_EMAIL` must be your Resend sign-up address |
 | `DEV_TOOLS` | local only: `true` enables `/api/usage/dev/use-up` and `/dev/reset` for the dev build's "Dev tools" box (try the Limit reached dialog without 50 real summaries). The box only exists in `npm run dev` |

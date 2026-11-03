@@ -14,7 +14,7 @@ It's a personal learning project for integrating AI agents into a real full-stac
 | 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
 | 2 | Background job queue, page fetching, on-demand AI summaries (a fallback chain of free models), daily limit with a Limit reached dialog | ✅ Done (v0.2.0) |
 | 3 | Hybrid search: keyword + semantic (embeddings) | ✅ Done (v0.3.0) |
-| 4 | "Ask your bookmarks" chat agent (LangGraph) | ✅ Done (v0.3.0): the agent, its streaming API and the Ask page. A 10-question eval and LangSmith tracing are still to come |
+| 4 | "Ask your bookmarks" chat agent (LangGraph) | ✅ Done (v0.3.0): the agent, its streaming API and the Ask page; since then, an eval script and LangSmith tracing |
 | 5–7 | Auto-tags, regular dead-link re-checks, weekly digest | Planned (Dead links, Find archived copy and read / unread are already in) |
 | 8 | Deploy (Render + Neon + Vercel), CI | Planned |
 | UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done |
@@ -53,7 +53,7 @@ The full plan, with the reasoning behind each decision, is in [docs/PLAN.md](doc
 | Database | PostgreSQL 16 + pgvector (Docker locally, Neon in production) |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, React Router |
 | Extension | WXT (Manifest V3), works in Chrome, Edge, Brave and Firefox |
-| AI | LangChain with a fallback chain of free models (Gemini, OpenRouter, NVIDIA NIM, Groq); Gemini embeddings in pgvector for search; LangGraph agent and LangSmith tracing planned |
+| AI | LangChain with a fallback chain of free models (Gemini, OpenRouter, NVIDIA NIM, Groq); Gemini embeddings in pgvector for search; a LangGraph agent with an eval; LangSmith tracing (local only) |
 | Email | Resend (free plan), one HTTPS call |
 | Tooling | pytest, ruff, oxlint |
 
@@ -142,7 +142,7 @@ The API runs at http://localhost:8000, with the background job worker running in
 | `GROQ_API_KEY` | optional | the last fallback. A provider without a key is skipped |
 | `GEMINI_MODEL`, `GEMINI_FALLBACK_MODEL`, `OPENROUTER_MODEL`, `NVIDIA_MODEL`, `GROQ_MODEL` | optional | override the models (defaults `gemini-3.5-flash-lite`, `gemini-2.5-flash`, `nvidia/nemotron-3.5-super-vl:free`, `deepseek-ai/deepseek-v4.1-flash`, `openai/gpt-oss-120b`) |
 | `GEMINI_EMBEDDING_MODEL` | optional | the embedding model (default `gemini-embedding-2`). Changing it means re-embedding every page |
-| `LANGSMITH_API_KEY` | Phase 4 | optional tracing |
+| `LANGSMITH_API_KEY` | optional | tracing in LangSmith and the Ask eval (`uv run python -m scripts.eval_agent`). Local only, never production |
 | `AI_DAILY_LIMIT_PER_USER` | summaries | summaries each user may start per UTC day (default 50); protects the shared free-tier quota |
 | `RESEND_API_KEY` / `MAINTAINER_EMAIL` | optional | "Notify the maintainer" in the Limit reached dialog ([Resend](https://resend.com), free 100 emails a day). Without your own domain, `MAINTAINER_EMAIL` must be the address you signed up to Resend with. `EMAIL_FROM` overrides the sender |
 | `DEV_TOOLS` | local only | `true` turns on `/api/usage/dev/*`, which the dev build's "Dev tools" box uses to use up or reset today's AI limit (to try the Limit reached dialog). Never in production |

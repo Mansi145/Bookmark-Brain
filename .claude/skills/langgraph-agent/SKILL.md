@@ -118,4 +118,23 @@ keeping every conversation it was sent, and streaming tool calls too), `calls_to
 resets `chat.open_chats` for each test and reads the SSE events from the response.
 
 ## Evaluating
-`backend/evals/agent_eval.py` runs fixed questions against fixture bookmarks and checks the cited doc ids. Run it after changing prompts or tools, and inspect the traces in LangSmith.
+`backend/scripts/eval_agent.py` asks the agent the questions in `backend/eval/questions.json` (your own
+bookmarks, so git-ignored; `questions.example.json` shows the format: each question and the URLs a good
+answer cites, `[]` for a question the bookmarks can't answer). Run it before and after changing the
+prompt, a tool or the search cutoff, and compare.
+- **Scoring is citations only**, in plain code (`score()`): recall (expected pages cited), precision
+  (cited pages that were expected) and honest (cited nothing when nothing fits). No AI judge, so a run
+  costs only the agent's own calls and the same answer always gets the same score.
+- **Each run is a LangSmith experiment** on the dataset `ask-eval`, which the script keeps in step with
+  the file (edited in place, so old runs stay comparable). Every question links to its trace. `--local`
+  skips LangSmith and only prints the table.
+- An expected URL that isn't in your bookmarks stops the run before any question (a typo would
+  otherwise count as a miss every time).
+- It calls the graph directly, one question at a time, so it doesn't count towards the daily AI limit.
+
+## Tracing
+LangSmith records each run as a tree of steps (model calls, tool calls, their inputs and outputs,
+which model in the fallback chain answered, tokens, timings). **Local dev and the eval only** (owner,
+2026-11-03): production leaves the `LANGSMITH_*` variables unset, because traces carry users'
+questions and page text. `config.get_settings()` copies them from `.env` into the environment,
+where LangChain looks for them; the eval turns tracing on for its own runs either way.
