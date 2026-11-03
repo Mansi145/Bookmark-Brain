@@ -93,7 +93,20 @@ export type SyncSummary = {
   other_browsers: string[]
 }
 
-/** GET /api/usage: today's AI summaries for the signed-in user. */
+/** POST /api/chat's final "done" event: the answer and the bookmarks behind it. Mirrors ChatSourcesOut. */
+export type ChatSources = {
+  answer: string // citations as [bookmark:ID]
+  sources: Bookmark[] // cited, in the order first cited
+  also_found: Bookmark[] // found by the tools but not cited
+}
+
+/** GET /api/chat/recent: the first questions of the latest Ask chats. Mirrors AskedQuestionOut. */
+export type AskedQuestion = {
+  question: string
+  asked_at: string
+}
+
+/** GET /api/usage: today's AI uses (summaries and Ask questions) for the signed-in user. */
 export type Usage = {
   summaries_used: number
   summaries_limit: number

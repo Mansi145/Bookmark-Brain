@@ -3,8 +3,10 @@
 Requires the docker-compose database to be running (`docker compose up -d db`).
 """
 
+import json
 import os
 import random
+import re
 
 TEST_DB = "bookmark_brain_test"
 # Must be set before the app is imported: settings and the engine read it at import.
@@ -16,13 +18,16 @@ os.environ["WORKER_ENABLED"] = "false"  # tests run jobs explicitly with run_onc
 import asyncpg  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel  # noqa: E402
+from langchain_core.messages import AIMessage, AIMessageChunk  # noqa: E402
+from langchain_core.outputs import ChatGenerationChunk  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from app.ai import llm  # noqa: E402
 from app.auth.security import SESSION_COOKIE, create_session_token  # noqa: E402
-from app.db import Base, get_session  # noqa: E402
+from app.db import Base, get_session, get_sessionmaker  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import EMBEDDING_DIMENSIONS, User  # noqa: E402
 
@@ -38,6 +43,7 @@ async def _override_session():
 
 
 app.dependency_overrides[get_session] = _override_session
+app.dependency_overrides[get_sessionmaker] = lambda: TestSession
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -142,3 +148,43 @@ def client_for():
         return c
 
     return make
+
+
+# --- The chat agent's model ---------------------------------------------------------------
+
+
+class ScriptedModel(GenericFakeChatModel):
+    """LangChain's fake chat model: answers with `messages` in turn (tool calls included) and
+    keeps every conversation it was sent. It streams too, word by word."""
+
+    sent: list = []
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        self.sent.append(list(messages))
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+    def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+        """Text word by word, and tool calls as one chunk (LangChain's fake drops tool calls
+        when streaming, which a real model doesn't). LangGraph streams the agent's replies."""
+        message = self._generate(messages, stop, run_manager, **kwargs).generations[0].message
+        for word in re.split(r"(\s)", message.content):
+            if word:
+                yield ChatGenerationChunk(message=AIMessageChunk(content=word))
+        if message.tool_calls:
+            calls = [
+                {"name": c["name"], "args": json.dumps(c["args"]), "id": c["id"], "index": i}
+                for i, c in enumerate(message.tool_calls)
+            ]
+            yield ChatGenerationChunk(message=AIMessageChunk(content="", tool_call_chunks=calls))
+
+
+def calls_tool(name: str, **args) -> AIMessage:
+    """A reply asking for one tool call."""
+    return AIMessage("", tool_calls=[{"name": name, "args": args, "id": f"call-{name}"}])
+
+
+def script(monkeypatch, *replies) -> ScriptedModel:
+    """Make the agent's model answer with `replies`, in turn."""
+    model = ScriptedModel(messages=iter(replies), sent=[])
+    monkeypatch.setattr(llm, "get_tool_model", lambda tools: model)
+    return model

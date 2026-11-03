@@ -104,6 +104,12 @@ curl -s localhost:8000/health/db
 docker compose exec db psql -U bb bookmark_brain -c "select kind, status, count(*) from jobs group by 1, 2"
 docker compose exec db psql -U bb bookmark_brain -c "select count(*) from bookmarks where deleted_at is null"
 ```
+Dev scripts that call the real models (free tier), run from `backend/`:
+```bash
+uv run python -m scripts.explore_search "postgres indexes"   # how search ranks, and what the cutoff drops
+uv run python -m scripts.ask "what have I saved about postgres?"   # the agent, step by step
+uv run python -m app.ai.agent.manual_loop "question"   # the hand-written agent loop
+```
 
 ## Flaky tests on WSL2: the clock jumps
 **Symptom:** the backend suite fails now and then, a different test each run, usually with

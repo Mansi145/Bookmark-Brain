@@ -28,3 +28,12 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 # Use as a route parameter type: `async def route(session: SessionDep): ...`
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """For work that outlives the request's session, like a streamed Ask answer: it opens
+    sessions as it needs them. Tests swap in their own."""
+    return SessionLocal
+
+
+SessionMakerDep = Annotated[async_sessionmaker[AsyncSession], Depends(get_sessionmaker)]

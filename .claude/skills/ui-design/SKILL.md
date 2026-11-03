@@ -13,12 +13,14 @@ Read a board's file through the Artifact tool when you need exact markup. Its pa
 - **Home**: `Login` (sign-up), `HowItWorks`, `Main` (the feed; every feed board imports it), the
   feed sections, empty states, `RowStates`, `FeedLoading`, `Ask`, `AskEmpty`, `Digest`,
   `DigestDark`, `FeedSearch`, `FeedDetail`, `FeedDetailUnsummarised`, `FeedFirstRun`, `MarkAsRead`,
-  `FeedPhone`, `FeedPhoneDark`, and the search states (`FeedSearchLoading`, `FeedSearchEmpty`,
-  `FeedSearchError`, each with a `…Dark` board, plus `FeedSearchDark`).
+  `FeedPhone`, `FeedPhoneDark`, the search states (`FeedSearchLoading`, `FeedSearchEmpty`,
+  `FeedSearchError`, each with a `…Dark` board, plus `FeedSearchDark`), `AskMenu` (the Ask tab's
+  dropdown) and a **dark version of every board** up to Phase 4 (same name + `Dark`, at the bottom
+  of the page). `Login` and `HowItWorks` have none: they look the same in both themes.
 - **Components**: `Texture`, `LogoFinal`, `LogoAnimations`, plus the previous brain logo (`Logo`,
   `LogoVariants`) and the `LogoDirections` tests, kept for reference only.
-- **Other screens**: `FeedDark`, Settings (Browsers, Account, delete dialog, dark), `AccountMenu`,
-  the popup states, Connect and error pages (light and dark), `LimitDialog`.
+- **Other screens**: `FeedDark`, Settings (Browsers, Account, delete dialog), `AccountMenu`, the
+  popup states, Connect and error pages, `LimitDialog`, each with a dark version.
 - **Archive**: trials that were compared and decided, for reference only; don't build from them.
   The newspaper layouts (`NewsClassic`, `NewsGrid`, `NewsSections`), the dark mode options
   (`DarkModeOptions`, `DarkExample*`) and the dropped search keyword-only state
@@ -127,7 +129,8 @@ states every story shares.
   (36 px target, 24 px `rgba(255,255,255,.16)` circle) that goes back to the feed,
   as Escape does; the field wraps to its own full-width row on phones); **tabs Feed · Ask · Digest**
   (current tab on `rgba(255,255,255,.14)`, weight 600; Settings is in the account menu, and the
-  feed sections are never tabs); a quiet **How it works** link with a help icon; a white round
+  feed sections are never tabs; **Ask** has a 14 px chevron and opens the recent-questions dropdown,
+  see Ask); a quiet **How it works** link with a help icon; a white round
   account button (the user's initial). No theme button: the light / dark switch is in the account
   menu.
 - **Account menu** (`AccountMenu`, `AccountMenuDark`): the account button (`aria-haspopup="menu"`,
@@ -206,13 +209,21 @@ states every story shares.
   are under **Search** in the newspaper feed section below.
 - **First run** (`FeedFirstRun`): one `surface` card: bookmark icon on `accent`, "Connect your first
   browser", two numbered steps, **Get the extension** (`ink`) + **Connect by hand** (to Settings).
-- **Ask** (`Ask`, `AskEmpty`): three panels. Left: **New chat** (`ink`) + Recent chats (current on
-  `accent`). Middle: thread title (Aleo 24 px); your messages in `ink` bubbles on the right; the
-  agent's steps as small check lines ("Searched your bookmarks for “…” · 4 found"); answers in
-  `surface` bubbles with numbered citation chips on `accent`; working = `accent2` pill "Searching your
-  bookmarks…" + skeleton lines; composer (textarea + `ink` send button) and "Answers use only pages
-  you've saved, and link to each one." Right: **Sources** (numbered cards with logo chip, site, Aleo
-  title) + "Also found". Empty: "Ask your bookmarks" + 4 suggested-question pills.
+- **Ask** (`Ask`, `AskEmpty`, `AskMenu`): two panels. Main: thread title (Aleo 24 px) with an
+  outlined **New chat** (40 px, plus icon) on the right; your messages in `ink` bubbles on the right;
+  the agent's steps as small check lines ("Searched your bookmarks for “…” · 4 found"); answers in
+  `surface` bubbles with numbered citation chips on `accent`; working = `accent2` pill "Searching
+  your bookmarks…" + skeleton lines; composer (textarea + `ink` send button) and "Answers use only
+  pages you've saved, and link to each one." Right: **Sources** (numbered cards with logo chip,
+  site, Aleo title) + "Also found". Empty: "Ask your bookmarks" + 4 suggested-question pills.
+  - **Citations, source cards and "Also found" open the bookmark detail panel** (owner), as in the
+    feed.
+  - **History** (owner): only the **first question** of each chat is kept, never the answers.
+    There's no chat list on the page. The **Ask tab** opens a dropdown (`AskMenu`; styled like the
+    account menu, 300 px, under the tab): **New chat**, a divider, "Recent questions" and the last
+    3 first-questions (40 px rows, a "repeat" icon, one line with an ellipsis). Picking one opens
+    Ask and asks it again for a fresh answer. With no questions yet the tab just opens Ask.
+    Follow-up questions work while a chat is open.
 - **Weekly digest** (`Digest`, `DigestDark`), a **newsletter**: no sidebar. One
   `panel` with "Weekly digest" (Aleo 40 px), "Unread bookmarks you saved more than 30 days ago,
   gathered once a week.", then **back-issue tabs** (This week · 16–22 Oct · 9–15 Oct · 2–8 Oct ·
@@ -296,8 +307,8 @@ states every story shares.
     results in ruled columns; results include read stories (faded), subscribers-only and dead links,
     each with its usual state line. Matched words on `accent` with white text.
     - **At most 10 results**, best first, no Show more or pager (owner). The server merges the top 50
-      keyword and top 50 meaning matches and returns the best 10 (meaning search always fills every
-      slot, so a small cap keeps weak matches out); when more than 10 matched the count reads
+      keyword and top 50 meaning matches and returns the best 10 (weak meaning matches are cut off,
+      so a search with no real match shows the no-results card); when more than 10 matched the count reads
       **"Top 10 matches"**, otherwise "N bookmarks".
     - **Searching** (`FeedSearchLoading`): masthead "Searching your bookmarks…" (`role="status"`),
       the query, a skeleton count; skeleton stories in the results' shape (pulsing, still with
@@ -378,7 +389,8 @@ and "Manage connected browsers in Settings" at the bottom. Status card per state
 | Syncing | `accent2`, white text (like the in-progress pills) | spinner | Syncing… (disabled) |
 | Token rejected | `deadBg`, `deadFg` text | alert circle | Reconnect |
 
-Dark mode: Settings and the popup use the dark tokens; the dark texture is the same in both themes.
+Dark mode: the popup body uses the dark tokens (`PopupDark` and the `…Dark` state boards); the
+texture header is the same in both themes.
 
 ## Logo animations
 The top-left masthead BB in the top bar animates while the app works, a different movement per job

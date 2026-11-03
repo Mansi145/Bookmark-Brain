@@ -17,7 +17,7 @@ long outage is the job queue's work (app/worker.py), and falling back fast matte
 Embeddings (get_embedder) are Gemini only, with no fallback: see GeminiEmbeddings.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 
 from google import genai
@@ -26,6 +26,7 @@ from google.genai import types
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
@@ -89,9 +90,15 @@ def _models() -> list[BaseChatModel]:
     return models
 
 
-def get_chat_model() -> Runnable:
-    """A chat model that answers in free text (for the chat agent, later)."""
-    first, *rest = _models()
+def get_tool_model(tools: Sequence[BaseTool]) -> Runnable:
+    """A chat model that may ask to call `tools` (the chat agent, app/ai/agent/).
+
+    `bind_tools` sends each tool's name, argument schema and docstring with every request. The
+    model then answers either with text or with "tool calls": a tool name and arguments for us
+    to run. It never runs anything itself. Like structured output, tools have to be bound to
+    each model before `with_fallbacks`.
+    """
+    first, *rest = [m.bind_tools(tools) for m in _models()]
     return first.with_fallbacks(rest) if rest else first
 
 

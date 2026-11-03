@@ -138,6 +138,28 @@ async def test_finds_pages_about_the_same_thing_in_other_words(client, user, top
     assert titles(client, "waterproof pants")[0] == "Hiking trousers"
 
 
+async def test_a_search_with_no_real_match_returns_nothing(client, user, topics):
+    await save(user, "Hiking trousers")
+    await save(user, "Fender Play")  # embedded from its title alone, close to nothing in particular
+
+    assert titles(client, "postgres") == []
+
+
+async def test_a_page_known_only_by_its_title_is_still_found_when_it_fits(client, user, topics):
+    await save(user, "Guitar")
+    await save(user, "Hiking trousers")
+
+    assert titles(client, "music") == ["Guitar"]
+
+
+def test_meaning_matches_must_be_close_to_the_query_and_to_the_best_match():
+    # Under the floor (0.65): not a match, however few pages there are.
+    assert search.close_enough([(1, 0.64), (2, 0.60)]) == []
+    assert search.close_enough([(1, 0.68), (2, 0.66), (3, 0.64)]) == [1, 2]
+    # More than 0.07 behind this search's best match: dropped too.
+    assert search.close_enough([(1, 0.82), (2, 0.76), (3, 0.74)]) == [1, 2]
+
+
 async def test_pages_both_halves_find_rank_first(client, user, topics):
     await save(user, "Postgres tuning")  # meaning only: a postgres page without the word "database"
     await save(user, "Database indexes for Postgres")  # keyword and meaning
