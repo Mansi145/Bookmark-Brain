@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.db import SessionDep
 from app.models import User
 from app.schemas import GoogleLoginIn, UserOut
+from app.services import tags
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
@@ -204,6 +205,7 @@ async def _account_to_link(session: AsyncSession, email: str, provider_column) -
     if user is None:
         user = User(email=email)
         session.add(user)
+        tags.add_starter_tags(session, user)  # saved with the user, once a provider is set
     return user
 
 

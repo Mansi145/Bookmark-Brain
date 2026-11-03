@@ -6,6 +6,7 @@ Shape of the bookmark data:
     users 1──* bookmarks *──1 documents
                   │
                   1──* bookmark_sources   (one per browser that has it)
+                  *──* tags               (bookmark_tags; the user's own tags)
 
 `documents` are shared across users (one row per normalised URL), so the
 expensive AI work done in later phases is cached once per URL.
@@ -208,6 +209,11 @@ class Bookmark(TimestampMixin, Base):
     sources: Mapped[list["BookmarkSource"]] = relationship(
         back_populates="bookmark", lazy="selectin"
     )
+    # Read-only here: tags are added and removed as BookmarkTag rows (services/tags.py), which
+    # also record who added them.
+    tags: Mapped[list["Tag"]] = relationship(
+        secondary="bookmark_tags", lazy="selectin", order_by="Tag.name", viewonly=True
+    )
 
 
 class BookmarkSource(TimestampMixin, Base):
@@ -301,3 +307,54 @@ class AskedQuestion(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     question: Mapped[str] = mapped_column(Text)
     asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Tag(TimestampMixin, Base):
+    """One of a user's tags. Every account starts with copies of the starter tags
+    (services/tags.py), which are ordinary tags: they can be renamed and deleted."""
+
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(30))
+
+    user: Mapped[User] = relationship()
+
+    # One tag per name and user, whatever the case: "postgres" is the same tag as "Postgres".
+    __table_args__ = (Index("uq_tags_user_name", user_id, func.lower(name), unique=True),)
+
+
+class TagSource(enum.StrEnum):
+    user = "user"  # added by hand
+    ai = "ai"  # added with a summary (shown the same; owner)
+
+
+class BookmarkTag(Base):
+    """A tag on a bookmark. Both sides belong to the same user (services/tags.py checks)."""
+
+    __tablename__ = "bookmark_tags"
+
+    bookmark_id: Mapped[int] = mapped_column(
+        ForeignKey("bookmarks.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[int] = mapped_column(
+        ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    source: Mapped[TagSource] = mapped_column(Enum(TagSource, name="tag_source"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RemovedTag(Base):
+    """A tag the user took off a bookmark, so the AI never puts it back (owner).
+
+    Adding the tag again by hand deletes the row.
+    """
+
+    __tablename__ = "removed_tags"
+
+    bookmark_id: Mapped[int] = mapped_column(
+        ForeignKey("bookmarks.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True)
+    removed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

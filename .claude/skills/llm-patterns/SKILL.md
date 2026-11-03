@@ -54,7 +54,7 @@ Don't create `ChatGoogleGenerativeAI` or other clients anywhere else. Model name
 When code needs fields back, use `model.with_structured_output(PydanticSchema)` instead of parsing free text. The schemas live next to the chain in `chains.py`.
 
 ## Cost & quota rules (free tiers!)
-1. **Cache per document**: summaries, key points, tags and embeddings are stored on `documents` (shared across users). Check the cache before calling the model.
+1. **Cache per document**: summaries, key points and embeddings are stored on `documents` (shared across users). Check the cache before calling the model. Tags are per user (`bookmark_tags`), so they are never cached on the document.
 2. **Background, not request path**: summaries, page embeddings and tags run as `jobs`, never inside
    an HTTP handler (Summarise and Re-summarise queue a job after checking
    `AI_DAILY_LIMIT_PER_USER`). Two things call a model inside a request: a **search** embeds its
@@ -83,7 +83,9 @@ When code needs fields back, use `model.with_structured_output(PydanticSchema)` 
 - "Notify the maintainer" (`POST /api/usage/notify-maintainer`) claims today's email in one statement
   (`claim_notice`), so a user can send at most one a day; if Resend refuses, `release_notice` gives
   the slot back (502) so they can try again.
-- New AI actions (chat, tags) should count through the same table and answer 429 the same way.
+- Ask questions count through the same table and answer 429 the same way. AI tags don't count
+  (owner, 2026-11-03): they are picked with the summary, and on a cached summary that one small
+  call per user is free to them.
   Searches don't count (owner) and never answer 429: the throttle above handles them.
 - `DEV_TOOLS=true` (local only) enables `/api/usage/dev/use-up` and `/dev/reset` to try all this
   without 50 real summaries.

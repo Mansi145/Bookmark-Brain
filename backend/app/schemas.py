@@ -1,9 +1,9 @@
 """Request/response shapes for the API (validated by FastAPI, shown in /docs)."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models import DocumentStatus, ReadState
 
@@ -87,6 +87,36 @@ class SourceOut(ORMModel):
     folder_path: str
 
 
+class TagOut(ORMModel):
+    id: int
+    name: str
+
+
+class TagCount(TagOut):
+    count: int  # the user's bookmarks with this tag (in the section, for facets)
+
+
+# Spaces are trimmed first, so "   " is empty. services/tags.py also makes runs of spaces one.
+TagName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=30)]
+
+
+class TagIn(BaseModel):
+    name: TagName
+
+
+class TagMergeIn(BaseModel):
+    into: int  # the tag that stays
+
+
+class TagBulkIn(BaseModel):
+    bookmark_ids: list[int] = Field(min_length=1, max_length=200)
+
+
+class TagBulkOut(BaseModel):
+    changed: int  # bookmarks that got (or lost) the tag
+    skipped: int = 0  # Add tag only: bookmarks that already had 5 tags
+
+
 class BookmarkOut(ORMModel):
     id: int
     title: str
@@ -111,6 +141,7 @@ class BookmarkOut(ORMModel):
     key_points: list[str]
     summary_status: str | None  # None (never asked) | working | done | failed
     sources: list[SourceOut]
+    tags: list[TagOut]  # by name
 
 
 class BookmarkUpdate(BaseModel):
@@ -152,6 +183,7 @@ class FacetsOut(BaseModel):
     pending: int  # of those, pages still being fetched
     folders: list[FacetCount]
     browsers: list[FacetCount]
+    tags: list[TagCount]  # every tag in use (on any of the user's bookmarks), counted here
 
 
 class ArrivedBookmark(BaseModel):
