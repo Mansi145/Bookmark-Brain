@@ -23,6 +23,13 @@ export type CreatedApiToken = ApiToken & { token: string }
 export type ReadState = 'unread' | 'read'
 export type DocumentStatus = 'pending' | 'fetched' | 'summarised' | 'failed' | 'dead'
 
+export type Tag = { id: number; name: string }
+export type TagCount = Tag & { count: number } // bookmarks with it (in the section, for facets)
+/** A tag rule a change would break: the 409's detail (backend app/services/tags.py). */
+export type TagErrorCode = 'tag_name_taken' | 'tag_limit' | 'bookmark_tag_limit' | 'tag_merge_same'
+/** Select mode's Add tag / Remove tag: bookmarks changed, and (Add) skipped for having 5 tags. */
+export type TagBulkResult = { changed: number; skipped: number }
+
 export type Bookmark = {
   id: number
   title: string
@@ -47,6 +54,7 @@ export type Bookmark = {
   key_points: string[]
   summary_status: 'working' | 'done' | 'failed' | null
   sources: { browser: string; folder_path: string }[]
+  tags: Tag[] // by name
 }
 
 // Each bookmark is in exactly one section (see backend/app/api/bookmarks.py).
@@ -77,6 +85,7 @@ export type Facets = {
   pending: number // of those, pages still being fetched
   folders: FacetCount[]
   browsers: FacetCount[]
+  tags: TagCount[] // every tag in use, counted in this section (unused ones: GET /api/tags)
 }
 
 export type ArrivedBookmark = {

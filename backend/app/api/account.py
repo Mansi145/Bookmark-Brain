@@ -20,7 +20,7 @@ from app.config import get_settings
 from app.db import SessionDep
 from app.models import ApiToken, Bookmark, User
 from app.schemas import AccountDeleteIn, AccountOut
-from app.services import questions
+from app.services import questions, tags
 
 router = APIRouter(prefix="/api/account", tags=["account"])
 
@@ -41,8 +41,9 @@ async def account_summary(user: WebUser, session: SessionDep):
 
 @router.get("/export")
 async def export_data(user: WebUser, session: SessionDep):
-    """Download my data: one JSON file with every bookmark, where it's saved, its read state
-    and its summary, plus the connected browsers (names and dates only, never token secrets).
+    """Download my data: one JSON file with every bookmark (where it's saved, its read state,
+    summary and tags), every tag, plus the connected browsers (names and dates only, never token
+    secrets).
     """
     bookmarks = await session.scalars(
         select(Bookmark)
@@ -66,8 +67,12 @@ async def export_data(user: WebUser, session: SessionDep):
                 "saved_in": [{"browser": s.browser, "folder": s.folder_path} for s in b.sources],
                 "summary": b.document.summary if b.document.summary_status == "done" else None,
                 "key_points": b.document.key_points or [],
+                "tags": [t.name for t in b.tags],
             }
             for b in bookmarks
+        ],
+        "tags": [
+            {"name": t.name, "bookmarks": n} for t, n in await tags.with_counts(session, user.id)
         ],
         "connected_browsers": [
             {

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import account, auth, bookmarks, chat, health, search, sync, tokens, usage
+from app.api import account, auth, bookmarks, chat, health, search, sync, tags, tokens, usage
 from app.config import get_settings
 from app.worker import running_workers
 
@@ -40,3 +40,4 @@ app.include_router(search.router)
 app.include_router(usage.router)
 app.include_router(account.router)
 app.include_router(chat.router)
+app.include_router(tags.router)

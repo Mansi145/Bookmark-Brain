@@ -9,7 +9,15 @@ from sqlalchemy import and_, func, or_, select
 
 from app.auth.deps import CurrentUser
 from app.db import SessionDep
-from app.models import Bookmark, BookmarkSource, Document, DocumentStatus, ReadState
+from app.models import (
+    Bookmark,
+    BookmarkSource,
+    BookmarkTag,
+    Document,
+    DocumentStatus,
+    ReadState,
+    Tag,
+)
 from app.schemas import (
     ArrivedBookmark,
     BookmarkOut,
@@ -20,6 +28,8 @@ from app.schemas import (
     ReadStateCounts,
     SourceOut,
     SyncSummaryOut,
+    TagCount,
+    TagOut,
 )
 from app.services import usage
 from app.services.extract import reading_minutes
@@ -27,6 +37,10 @@ from app.services.icons import default_icon
 from app.worker import enqueue
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
+
+# The sidebar's picked tags, as ?tag=3&tag=7 (bookmarks with both). A bookmark has at most 5
+# tags, so filtering by more couldn't match anything.
+TagFilter = Annotated[list[int] | None, Query(max_length=5)]
 
 
 class Section(StrEnum):
@@ -66,6 +80,16 @@ def in_folder_or_browser(folder: str | None, browser: str | None) -> list:
     return [select(BookmarkSource.id).where(*source_filter).exists()]
 
 
+def with_tags(tag_ids: list[int] | None) -> list:
+    """The sidebar's tag filter: bookmarks with every one of these tags (also used by search)."""
+    return [
+        select(BookmarkTag.tag_id)
+        .where(BookmarkTag.bookmark_id == Bookmark.id, BookmarkTag.tag_id == tag_id)
+        .exists()
+        for tag_id in dict.fromkeys(tag_ids or [])
+    ]
+
+
 def _encode_cursor(bookmark: Bookmark) -> str:
     return f"{bookmark.added_at.isoformat()}_{bookmark.id}"
 
@@ -86,6 +110,7 @@ async def list_bookmarks(
     cursor: str | None = None,
     folder: str | None = None,
     browser: str | None = None,
+    tag: TagFilter = None,
     section: Section = Section.main,
     read_state: ReadState | None = None,  # the Feed's reading-state bar; None = all
     # The newspaper's editions: Today and This week load everything saved after the start of
@@ -103,7 +128,7 @@ async def list_bookmarks(
     if read_state is not None:
         query = query.where(Bookmark.read_state == read_state)
 
-    query = query.where(*in_folder_or_browser(folder, browser))
+    query = query.where(*in_folder_or_browser(folder, browser), *with_tags(tag))
 
     if saved_after is not None:
         query = query.where(Bookmark.added_at >= saved_after)
@@ -142,11 +167,17 @@ async def list_bookmarks(
 
 
 @router.get("/facets", response_model=FacetsOut)
-async def facets(user: CurrentUser, session: SessionDep, section: Section = Section.main):
-    """Folder and browser counts, for the feed's filter sidebar (per section).
+async def facets(
+    user: CurrentUser,
+    session: SessionDep,
+    section: Section = Section.main,
+    tag: TagFilter = None,
+):
+    """Folder, browser and tag counts, for the feed's filter sidebar (per section).
 
-    Every folder and browser the user has is listed, with 0 where this section has none,
-    so the sidebar looks the same in every section.
+    Every folder, browser and tag in use is listed, with 0 where this section has none, so the
+    sidebar looks the same in every section. Picked tags narrow the totals and reading-state
+    counts ("4 bookmarks with both tags"), not the sidebar's lists.
     """
     active = and_(
         BookmarkSource.user_id == user.id,
@@ -167,7 +198,10 @@ async def facets(user: CurrentUser, session: SessionDep, section: Section = Sect
         return [FacetCount(value=value, count=counts.get(value, 0)) for value in everything]
 
     in_section = and_(
-        Bookmark.user_id == user.id, Bookmark.deleted_at.is_(None), _section_filter(section)
+        Bookmark.user_id == user.id,
+        Bookmark.deleted_at.is_(None),
+        _section_filter(section),
+        *with_tags(tag),
     )
     total = await session.scalar(select(func.count()).select_from(Bookmark).where(in_section))
     pending = await session.scalar(
@@ -190,7 +224,27 @@ async def facets(user: CurrentUser, session: SessionDep, section: Section = Sect
         pending=pending or 0,
         folders=await count_by(BookmarkSource.folder_path),
         browsers=await count_by(BookmarkSource.browser),
+        tags=await _tag_counts(session, user.id, section),
     )
+
+
+async def _tag_counts(session, user_id: int, section: Section) -> list[TagCount]:
+    """Tags on any of the user's bookmarks, each counted in this section, most used first.
+    Unused tags aren't listed (the sidebar's Show unused gets them from /api/tags)."""
+    live = and_(
+        BookmarkTag.bookmark_id == Bookmark.id,
+        Bookmark.user_id == user_id,
+        Bookmark.deleted_at.is_(None),
+    )
+    in_section = func.count(Bookmark.id).filter(_section_filter(section))
+    rows = await session.execute(
+        select(Tag.id, Tag.name, in_section)
+        .join(BookmarkTag, BookmarkTag.tag_id == Tag.id)
+        .join(Bookmark, live)
+        .group_by(Tag.id)
+        .order_by(in_section.desc(), func.lower(Tag.name))
+    )
+    return [TagCount(id=id, name=name, count=n) for id, name, n in rows.all()]
 
 
 @router.get("/sync-summary", response_model=SyncSummaryOut)
@@ -254,7 +308,7 @@ async def find_archive_copy(bookmark_id: int, user: CurrentUser, session: Sessio
     the feed polls until it changes. Only for dead links, and only when a user asks, so no
     URL is sent to archive.org without someone choosing to.
     """
-    bookmark = await _own_bookmark(session, user.id, bookmark_id)
+    bookmark = await own_bookmark(session, user.id, bookmark_id)
     document = bookmark.document
     if document.status != DocumentStatus.dead:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only dead links can be looked up")
@@ -270,7 +324,7 @@ async def update_bookmark(
     bookmark_id: int, changes: BookmarkUpdate, user: CurrentUser, session: SessionDep
 ):
     """Mark a bookmark read or unread (the detail panel's Mark as read)."""
-    bookmark = await _own_bookmark(session, user.id, bookmark_id)
+    bookmark = await own_bookmark(session, user.id, bookmark_id)
     bookmark.read_state = changes.read_state
     await session.commit()
     return bookmark_out(bookmark)
@@ -287,7 +341,7 @@ async def summarise_bookmark(
     the user's daily limit (429 once it's reached) and queues a summarise job; the feed polls
     while summary_status is "working".
     """
-    bookmark = await _own_bookmark(session, user.id, bookmark_id)
+    bookmark = await own_bookmark(session, user.id, bookmark_id)
     document = bookmark.document
     if document.status == DocumentStatus.dead and document.content_source != "archive":
         # A dead link can only be summarised from its Wayback copy (Find archived copy first).
@@ -312,10 +366,10 @@ async def summarise_bookmark(
 @router.get("/{bookmark_id}", response_model=BookmarkOut)
 async def get_bookmark(bookmark_id: int, user: CurrentUser, session: SessionDep):
     """One bookmark, for the detail panel (it may not be in the feed pages loaded so far)."""
-    return bookmark_out(await _own_bookmark(session, user.id, bookmark_id))
+    return bookmark_out(await own_bookmark(session, user.id, bookmark_id))
 
 
-async def _own_bookmark(session, user_id: int, bookmark_id: int) -> Bookmark:
+async def own_bookmark(session, user_id: int, bookmark_id: int) -> Bookmark:
     """The user's bookmark, or 404 (also for other users' bookmarks, so ids don't leak)."""
     bookmark = await session.scalar(
         select(Bookmark).where(
@@ -351,4 +405,5 @@ def bookmark_out(bookmark: Bookmark) -> BookmarkOut:
         key_points=bookmark.document.key_points or [],
         summary_status=bookmark.document.summary_status,
         sources=[SourceOut.model_validate(s) for s in bookmark.sources],
+        tags=[TagOut.model_validate(t) for t in bookmark.tags],
     )
