@@ -9,16 +9,19 @@
 3. Merge: weighted Reciprocal Rank Fusion (fuse). Only each page's place in each list counts,
    because the two lists' scores aren't on the same scale.
 
+Meaning matches must be close enough to the query (close_enough), so a search with no real
+match returns nothing (owner). Keyword matches are always kept: the page has the words.
+
 When the query can't be embedded (the model is down or rate limited, or this user searched a
 lot in the last minute), the keyword matches come back alone. They look like any other results:
-search never says how it matched (owner). Meaning matches have no cutoff yet (owner: later), so
-they fill every slot.
+search never says how it matched (owner).
 """
 
 import asyncio
 import logging
 import time
 from collections import OrderedDict, defaultdict, deque
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import ColumnElement, func, literal_column, select, text
@@ -40,6 +43,14 @@ CANDIDATES = 50  # taken from each list before merging
 RRF_K = 60
 KEYWORD_WEIGHT = 1.5
 MEANING_WEIGHT = 1.0
+
+# How close a page's meaning must be to count as a match (cosine similarity, 1.0 = same
+# direction). With gemini-embedding-2 on our bookmarks, unrelated pages scored 0.45-0.64 and real
+# matches 0.68 and up. How high real matches score varies by query, so a page must also be within
+# BEST_WINDOW of this search's best match. The same rule for every page: one embedded from just a
+# few words (a title) is a little close to everything, but stays under the floor unless it fits.
+MIN_SIMILARITY = 0.65
+BEST_WINDOW = 0.07
 
 # Around matched words in a result's `highlighted` text. Control characters never occur in
 # page text, so the frontend can split on them instead of rendering HTML from a web page.
@@ -139,20 +150,34 @@ async def keyword_matches(
 async def meaning_matches(
     session: AsyncSession, user_id: int, vector: list[float], filters: list[ColumnElement[bool]]
 ) -> list[int]:
-    """Bookmark ids whose page embedding is closest to the query's, closest first."""
+    """Bookmark ids whose page is close enough in meaning to the query, closest first."""
     # The HNSW index walks towards the nearest pages of *all* users, keeping only this user's
     # afterwards, and by default stops after 40 candidates (hnsw.ef_search): a user whose pages
     # aren't among them would get nothing. Iterative scans (pgvector 0.8) keep walking, in
     # order, until there are enough. SET LOCAL lasts until this request's transaction ends.
     await session.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
-    rows = await session.scalars(
-        select(Bookmark.id)
+    distance = Document.embedding.cosine_distance(vector)
+    rows = await session.execute(
+        select(Bookmark.id, 1 - distance)
         .join(Document, Document.id == Bookmark.document_id)
         .where(*_mine(user_id), *filters, Document.embedding.is_not(None))
-        .order_by(Document.embedding.cosine_distance(vector))
+        .order_by(distance)
         .limit(CANDIDATES)
     )
-    return list(rows)
+    return close_enough(rows.all())
+
+
+def similarity_floor(best: float) -> float:
+    """The lowest similarity that still counts, given this search's best match."""
+    return max(MIN_SIMILARITY, best - BEST_WINDOW)
+
+
+def close_enough(ranked: Sequence[tuple[int, float]]) -> list[int]:
+    """The ids from (bookmark id, similarity) pairs, closest first, that pass the cutoff."""
+    if not ranked:
+        return []
+    floor = similarity_floor(ranked[0][1])
+    return [bookmark_id for bookmark_id, similarity in ranked if similarity >= floor]
 
 
 async def highlights(session: AsyncSession, bookmark_ids: list[int], q: str) -> dict[int, str]:

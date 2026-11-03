@@ -4,8 +4,8 @@ Web app only (`WebUser`: the session cookie, never an extension token).
 
 Deleting removes the user row; the database then removes everything personal with it
 (`ondelete="CASCADE"`): bookmarks, which browser has each one (bookmark_sources), extension
-tokens and AI usage. `documents` stay: they're shared per URL (the page text and its cached
-summary aren't personal, and other users may have saved the same page).
+tokens, AI usage and Ask's recent questions. `documents` stay: they're shared per URL (the page
+text and its cached summary aren't personal, and other users may have saved the same page).
 """
 
 from datetime import UTC, datetime
@@ -20,6 +20,7 @@ from app.config import get_settings
 from app.db import SessionDep
 from app.models import ApiToken, Bookmark, User
 from app.schemas import AccountDeleteIn, AccountOut
+from app.services import questions
 
 router = APIRouter(prefix="/api/account", tags=["account"])
 
@@ -75,6 +76,11 @@ async def export_data(user: WebUser, session: SessionDep):
                 "last_synced_at": t.last_used_at.isoformat() if t.last_used_at else None,
             }
             for t in tokens
+        ],
+        # Only each Ask chat's first question is ever kept, and only the latest few.
+        "recent_questions": [
+            {"question": q.question, "asked_at": q.asked_at.isoformat()}
+            for q in await questions.recent(session, user.id)
         ],
     }
     filename = f"bookmark-brain-{now:%Y-%m-%d}.json"

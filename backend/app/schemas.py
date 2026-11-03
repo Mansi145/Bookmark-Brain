@@ -191,3 +191,29 @@ class AccountDeleteIn(BaseModel):
     """The typed confirmation, checked here too, not only in the dialog."""
 
     confirm: str
+
+
+# --- Ask (api/chat.py) ----------------------------------------------------------
+
+
+class ChatIn(BaseModel):
+    """A question for the agent. Without chat_id it starts a new chat; with the chat_id the
+    first answer's "chat" event gave, it's a follow-up in that chat."""
+
+    message: str = Field(min_length=1, max_length=2_000)
+    chat_id: str | None = Field(default=None, max_length=64)
+
+
+class AskedQuestionOut(ORMModel):
+    """One of the Ask tab's Recent questions."""
+
+    question: str
+    asked_at: datetime
+
+
+class ChatSourcesOut(BaseModel):
+    """The final "done" event: the answer and the bookmarks behind it."""
+
+    answer: str  # citations as [bookmark:ID]
+    sources: list[BookmarkOut]  # cited, in the order first cited
+    also_found: list[BookmarkOut]  # found by the tools but not cited

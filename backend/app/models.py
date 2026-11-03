@@ -267,7 +267,8 @@ class Job(TimestampMixin, Base):
 
 
 class AiUsage(Base):
-    """How many AI summaries a user started on a day (UTC), for AI_DAILY_LIMIT_PER_USER.
+    """How many AI uses (summaries and Ask questions) a user started on a day (UTC), for
+    AI_DAILY_LIMIT_PER_USER. The count is in `summaries`, named from before Ask shared it.
 
     The free Gemini and Groq quotas are per API key, so every user shares them; a per-user
     limit stops one person from using up everyone's day.
@@ -280,7 +281,23 @@ class AiUsage(Base):
     )
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     summaries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    # When a Summarise was first refused that day, and when the user emailed the maintainer
+    # When Summarise or Ask was first refused that day, and when the user emailed the maintainer
     # about it from the Limit reached dialog (at most once a day; see api/usage.py).
     limit_reached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     maintainer_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AskedQuestion(Base):
+    """The first question of an Ask chat, for the Ask tab's Recent questions (the last 3).
+
+    The owner's decision: only each chat's first question is kept, never the answers or the
+    follow-ups (those live in memory while the chat is open; ai/agent/chat.py). Only the latest
+    RECENT_QUESTIONS per user are kept (services/questions.py).
+    """
+
+    __tablename__ = "asked_questions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    question: Mapped[str] = mapped_column(Text)
+    asked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

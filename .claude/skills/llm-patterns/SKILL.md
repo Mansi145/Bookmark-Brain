@@ -7,13 +7,16 @@ description: Conventions for calling LLMs and embedding models in Bookmark Brain
 
 ## One entry point
 All model access goes through `backend/app/ai/llm.py`:
-- `get_chat_model()` returns the fallback chain: Gemini (`GEMINI_MODEL`) → a second Gemini model
+- `get_structured_model(schema)` (summaries) and `get_tool_model(tools)` (the chat agent) return
+  the fallback chain: Gemini (`GEMINI_MODEL`) → a second Gemini model
   (`GEMINI_FALLBACK_MODEL`, its own free quota, same key) → OpenRouter's free models → NVIDIA NIM
   (hosts DeepSeek for free) → Groq. Providers without a key are skipped.
   - If a model fails (rate limit, quota, outage), LangChain automatically sends the same call to the next one.
   - OpenRouter and NIM are OpenAI-compatible: `ChatOpenAI(base_url=...)`, structured output with
     `method="function_calling"` (strict JSON schema isn't on every free model).
   - An answer that doesn't fit the schema raises `UnparsedAnswer`, so the next model gets a go.
+  - Structured output and tools are applied to each model before `with_fallbacks`, because the
+    fallback wrapper has neither `with_structured_output` nor `bind_tools`.
 - `get_structured_model(Schema)` is the same pair for structured output. `with_structured_output`
   must be applied to **each** model before `with_fallbacks` (the fallback wrapper doesn't have the
   method). It uses `include_raw=True`, so callers get `{"raw", "parsed", "parsing_error"}`; the raw
@@ -68,7 +71,8 @@ When code needs fields back, use `model.with_structured_output(PydanticSchema)` 
    LLM handlers read it from there and never download pages themselves.
 
 ## Daily limit (`services/usage.py`)
-- `take_summary` checks and counts one summary in a single `INSERT … ON CONFLICT DO UPDATE … WHERE
+- `take_ai_use` checks and counts one AI use (a summary, or an Ask question however many model
+  calls it takes) in a single `INSERT … ON CONFLICT DO UPDATE … WHERE
   summaries < limit RETURNING` statement, so two quick clicks can't both slip under
   `AI_DAILY_LIMIT_PER_USER`. A cached summary costs nothing. The count is per UTC day (`today()`,
   `resets_at()`).
@@ -88,8 +92,9 @@ When code needs fields back, use `model.with_structured_output(PydanticSchema)` 
 Tests must never hit real APIs. Monkeypatch `app.ai.llm.get_structured_model` (chains call it as
 `llm.get_structured_model`, so the patch takes effect) with a fake that returns a
 `RunnableLambda` producing `{"raw": AIMessage(...), "parsed": Schema(...), "parsing_error": None}`;
-see `FakeModel` in `tests/test_summaries.py`. For free-text models, `FakeListChatModel` /
-`GenericFakeChatModel` work by overriding `get_chat_model`. Embeddings are faked for **every**
+see `FakeModel` in `tests/test_summaries.py`. For the agent, monkeypatch `llm.get_tool_model` to return
+`ScriptedModel` (`tests/conftest.py`): LangChain's `GenericFakeChatModel` answering from a script
+of `AIMessage`s, tool calls included, which also keeps every conversation it was sent. Embeddings are faked for **every**
 test by conftest's autouse `fake_embedder` (fetching a page queues an embedding, and `.env` may
 hold a real key); it records each request's texts in `calls` (pages) and `queries` (searches), and
 setting `error` makes requests fail.

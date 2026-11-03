@@ -14,7 +14,7 @@ It's a personal learning project for integrating AI agents into a real full-stac
 | 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
 | 2 | Background job queue, page fetching, on-demand AI summaries (a fallback chain of free models), daily limit with a Limit reached dialog | ✅ Done (v0.2.0) |
 | 3 | Hybrid search: keyword + semantic (embeddings) | In progress (embeddings and the search API are done; the search pages are next) |
-| 4 | "Ask your bookmarks" chat agent (LangGraph) | Planned |
+| 4 | "Ask your bookmarks" chat agent (LangGraph) | In progress: the agent and its streaming API built; the Ask page next |
 | 5–7 | Auto-tags, regular dead-link re-checks, weekly digest | Planned (Dead links, Find archived copy and read / unread are already in) |
 | 8 | Deploy (Render + Neon + Vercel), CI | Planned |
 | UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done |
@@ -73,10 +73,11 @@ bookmark_brain/
 │   │   ├── services/         URL normalisation, sync/merge, safe page fetcher, text extraction, sign-in
 │   │   │                     detection, Wayback Machine, site icons, preview images, daily limit, email,
 │   │   │                     hybrid search
-│   │   ├── ai/               llm.py (the model fallback chain, the embedder), embedding.py, chains.py, prompts/
+│   │   ├── ai/               llm.py (the model fallback chain, the embedder), embedding.py, chains.py, prompts/,
+│   │   │                     agent/ (tools, the hand-written loop, the LangGraph graph)
 │   │   └── worker.py         background job queue + worker
 │   ├── alembic/              database migrations
-│   ├── scripts/              explore_search.py (dev only)
+│   ├── scripts/              explore_search.py, ask.py (dev only)
 │   └── tests/                pytest (uses a separate test database)
 ├── frontend/                 React web app
 │   └── src/
@@ -233,7 +234,9 @@ Backend tests run against a separate `bookmark_brain_test` database, which they 
 | GET / PATCH | `/api/bookmarks/{id}` | cookie or token | one bookmark (detail panel) / mark it read or unread |
 | POST | `/api/bookmarks/{id}/summarise` | cookie or token | AI summary on demand (`again=true` to redo); cached per URL, counted against the daily limit |
 | GET | `/api/search` | cookie or token | hybrid search over your bookmarks: `q`, optional `folder` and `browser`; returns the best 10 (`items`, with matched words marked) and `more` when more matched |
-| GET | `/api/usage` | cookie or token | today's summaries used, the daily limit, when it resets |
+| POST | `/api/chat` | cookie only | ask your bookmarks: `message`, optional `chat_id` for a follow-up; streams Server-Sent Events (`chat`, `step`, `token`, `done` with the cited bookmarks, `error`); counts one AI use |
+| GET | `/api/chat/recent` | cookie only | the first questions of your latest 3 Ask chats |
+| GET | `/api/usage` | cookie or token | today's AI uses (summaries and Ask questions), the daily limit, when it resets |
 | POST | `/api/usage/notify-maintainer` | cookie or token | email the owner that this user hit today's limit (once a day per user; 409 if not at the limit, 503 if email isn't set up, 502 if Resend refused) |
 | POST | `/api/usage/dev/use-up`, `/api/usage/dev/reset` | cookie or token | local testing only: use up or reset today's limit (404 unless `DEV_TOOLS=true`) |
 | GET | `/api/account` | cookie only | what deleting the account would remove: bookmark and connected-browser counts |

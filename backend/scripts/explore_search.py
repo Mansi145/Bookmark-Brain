@@ -5,7 +5,8 @@ prints the top results with, for each one:
 - its place in the keyword list ("-" when not all the query's words are in it),
 - its place in the meaning list and its cosine similarity (1.0 = same direction, 0 = unrelated),
 - its merged score: 1.5 / (60 + keyword place) + 1 / (60 + meaning place).
-Use it to judge the keyword weight and, later, a similarity cutoff. With gemini-embedding-2,
+Under the table it lists the closest pages the similarity cutoff left out (search.MIN_SIMILARITY,
+search.BEST_WINDOW). Use it to judge the keyword weight and the cutoff. With gemini-embedding-2,
 unrelated pages scored 0.45-0.64 on our bookmarks and real matches 0.68 and up.
 
 Pages are embedded by the embed_pages job (the dev server's worker), so only the queries are
@@ -92,8 +93,24 @@ async def explain(user_id: int, q: str, top: int) -> None:
             select(Bookmark.id, Bookmark.title).where(Bookmark.id.in_(ranked))
         )
         titles = dict(rows.all())
+        left_out = []
+        if vector is not None:
+            distance = Document.embedding.cosine_distance(vector)
+            rows = await session.execute(
+                select(Bookmark.title, 1 - distance)
+                .join(Document, Document.id == Bookmark.document_id)
+                .where(
+                    Bookmark.user_id == user_id,
+                    Bookmark.deleted_at.is_(None),
+                    Document.embedding.is_not(None),
+                    Bookmark.id.not_in(meaning_ids),
+                )
+                .order_by(distance)
+                .limit(3)
+            )
+            left_out = rows.all()
 
-    print(f"\n“{q}”  {len(keyword_ids)} keyword matches, {len(meaning_ids)} meaning candidates")
+    print(f"\n“{q}”  {len(keyword_ids)} keyword matches, {len(meaning_ids)} meaning matches")
     if vector is None:
         print("  (couldn't embed the query: keyword matches only)")
     print("   #  keyword  meaning (similarity)  score   title")
@@ -106,6 +123,9 @@ async def explain(user_id: int, q: str, top: int) -> None:
             f"  {place:>2}  {keyword:>7}  {meaning:>20}  {scores[bookmark_id]:.4f}"
             f"  {titles[bookmark_id][:60]}"
         )
+    if left_out:
+        closest = ", ".join(f"{title[:40]} ({similarity:.3f})" for title, similarity in left_out)
+        print(f"  closest below the cutoff: {closest}")
 
 
 async def main() -> None:

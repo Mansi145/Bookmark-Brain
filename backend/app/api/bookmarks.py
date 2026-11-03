@@ -297,7 +297,7 @@ async def summarise_bookmark(
         document.summary_status == "done" and not again
     )
     if not already:
-        if not await usage.take_summary(session, user.id):
+        if not await usage.take_ai_use(session, user.id):
             # The app opens the Limit reached dialog; its email says when this happened.
             await usage.note_limit_reached(session, user.id)
             await session.commit()

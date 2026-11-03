@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Search your bookmarks from the top bar, by the words in them and by what they mean, with the best 10 matches and the matched words highlighted.
+- Search your bookmarks from the top bar, by the words in them and by what they mean, showing up to 10 of the closest matches with the matched words highlighted. A search with no real match shows nothing rather than unrelated pages.
 - The logo also animates while a search runs.
 - Sign in with GitHub. It opens the same account as Google when the verified email is the same, and Settings → Account links or unlinks either one.
 
