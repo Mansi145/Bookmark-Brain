@@ -21,9 +21,9 @@ const INK = '#141516'
 
 /**
  * Page back: summarising. Rewind: a page loading. Hourglass: looking for an archived copy.
- * Lens: a search running.
+ * Lens: a search running. Conversation: Ask working on an answer.
  */
-export type LogoMotion = 'page-back' | 'rewind' | 'hourglass' | 'lens'
+export type LogoMotion = 'page-back' | 'rewind' | 'hourglass' | 'lens' | 'conversation'
 
 // Turning around the middle of the drawing (100, 100), where the two B's share their spine.
 const AROUND_SPINE = 'transform-view origin-center'
@@ -32,11 +32,18 @@ function lettersScale(scale?: number) {
   return scale ? `translate(100 100) scale(${scale}) translate(-100 -100)` : undefined
 }
 
-function Letters({ scale }: { scale?: number }) {
+// Conversation: the two B's take turns lifting, the left one half a cycle behind the right.
+const TALK = 'transform-view animate-conversation motion-reduce:animate-none'
+
+function Letters({ scale, talking }: { scale?: number; talking: boolean }) {
   return (
     <g fill={INK} transform={lettersScale(scale)}>
-      <path fillRule="evenodd" d={B} />
-      <path fillRule="evenodd" transform="translate(200 0) scale(-1 1)" d={B} />
+      <g className={talking ? TALK : undefined}>
+        <path fillRule="evenodd" d={B} />
+      </g>
+      <g className={talking ? `${TALK} [animation-delay:0.6s]` : undefined}>
+        <path fillRule="evenodd" transform="translate(200 0) scale(-1 1)" d={B} />
+      </g>
     </g>
   )
 }
@@ -85,7 +92,7 @@ export default function Logo({
             <rect x="28" y="168" width="144" height="8" fill={ACCENT} />
           </>
         )}
-        <Letters scale={scale} />
+        <Letters scale={scale} talking={shown === 'conversation'} />
       </g>
 
       {/* A brown copy of the right B turns over the spine to the left, like a page, and fades. */}

@@ -6,7 +6,8 @@ import type { Provider, User } from '../api/types'
 import { PROVIDER_NAMES } from '../lib/format'
 import { GitHubMark, GoogleMark } from './ProviderMarks'
 
-// Settings → Account → Sign-in methods (owner): one row per provider, Linked with Unlink, or Link.
+// Settings → Account → Sign-in methods (owner; canvas v112): one row per provider, Linked with
+// Unlink, or a dark "Continue with …" button to link it.
 // Linking adds that provider to this account even with another email, since being signed in here
 // and approving on Google or GitHub proves it's the same person. Unlink is there to fix linking
 // the wrong account, and never shows for the only method left, so nobody locks themselves out.
@@ -46,7 +47,10 @@ export default function SignInMethods({ user }: { user: User }) {
     const linked = user.providers.includes(provider)
     return (
       <li className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line px-6 py-3.5">
-        <span aria-hidden className="grid size-9 place-items-center">
+        <span
+          aria-hidden
+          className="grid size-9 flex-none place-items-center rounded-[10px] border border-line bg-surface"
+        >
           {mark}
         </span>
         <div className="min-w-0 flex-[1_1_240px]">
@@ -98,7 +102,7 @@ export default function SignInMethods({ user }: { user: User }) {
             onSuccess={(res) => res.credential && linkGoogle.mutate(res.credential)}
             onError={() => linkGoogle.reset()}
             theme="filled_black"
-            size="medium"
+            size="large"
             text="continue_with"
             shape="rectangular"
           />,
@@ -108,16 +112,18 @@ export default function SignInMethods({ user }: { user: User }) {
           <span className="text-ink">
             <GitHubMark size={20} />
           </span>,
+          // Drawn to match Google's button, like the sign-up page's buttons (board SettingsAccount).
           <a
             href={LINK_GITHUB}
-            className="inline-flex h-9 items-center rounded-lg border border-line bg-surface px-3.5 font-medium text-ink no-underline"
+            className="inline-flex h-10 items-center gap-2.5 rounded-[10px] border border-[#8E918F] bg-[#141516] px-3.5 text-sm font-medium text-white no-underline"
           >
-            Link
+            <GitHubMark size={18} />
+            Continue with GitHub
           </a>,
         )}
       </ul>
       {error && (
-        <p role="alert" className="m-0 border-t border-line px-6 py-3 text-[13px] text-dead-fg">
+        <p role="alert" className="m-0 border-t border-line px-6 py-3 text-[13px] font-medium text-dead-fg">
           {error}
         </p>
       )}

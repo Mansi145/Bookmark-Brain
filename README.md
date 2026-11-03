@@ -14,7 +14,7 @@ It's a personal learning project for integrating AI agents into a real full-stac
 | 1 | Google sign-in, one-click extension connect, bookmark sync, feed with filters | ✅ Done |
 | 2 | Background job queue, page fetching, on-demand AI summaries (a fallback chain of free models), daily limit with a Limit reached dialog | ✅ Done (v0.2.0) |
 | 3 | Hybrid search: keyword + semantic (embeddings) | In progress (embeddings and the search API are done; the search pages are next) |
-| 4 | "Ask your bookmarks" chat agent (LangGraph) | In progress: the agent and its streaming API built; the Ask page next |
+| 4 | "Ask your bookmarks" chat agent (LangGraph) | In progress: the agent, its streaming API and the Ask page built; an eval and tracing next |
 | 5–7 | Auto-tags, regular dead-link re-checks, weekly digest | Planned (Dead links, Find archived copy and read / unread are already in) |
 | 8 | Deploy (Render + Neon + Vercel), CI | Planned |
 | UI | Final design: newspaper feed, detail panel, account menu, Settings → Account, warm charcoal dark mode, logo animations | ✅ Done |

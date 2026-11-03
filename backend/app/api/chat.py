@@ -7,7 +7,8 @@ POST /api/chat answers with `text/event-stream`: one event per line pair, "event
          {"id", "status": "done", "found", "title"?} when it's done (title: read_bookmark's page)
 - token  {"text"}: the answer as it's written (only text after the last step is the answer)
 - done   ChatSourcesOut: the final answer and its bookmarks, as the feed shows them
-- error  {"message"}: no answer this time (every model failed); the question still counted
+- error  {"reason": "busy", "message"}: every AI service failed. The question's AI use is given
+         back, and the app opens the Limit reached dialog's "AI is busy" version
 
 Only the web app may ask (the session cookie, never an extension token), and each question
 counts once towards the daily AI limit, before anything runs. Only a new chat's first question
@@ -80,7 +81,10 @@ async def _events(question: str, user_id: int, chat_id: str, sessions: async_ses
                 yield _event(kind, data)
     except Exception:
         log.exception("Ask failed for user %s", user_id)
-        yield _event("error", {"message": "Couldn't answer right now"})
+        async with sessions() as session:
+            await usage.give_back(session, user_id)
+            await session.commit()
+        yield _event("error", {"reason": "busy", "message": "Couldn't answer right now"})
 
 
 async def _with_bookmarks(session: AsyncSession, user_id: int, answer: dict) -> ChatSourcesOut:
