@@ -19,8 +19,10 @@ from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Bookmark, BookmarkSource, Document
+from app.config import get_settings
+from app.models import Bookmark, BookmarkSource, Document, DocumentStatus
 from app.schemas import SyncIn, SyncItem, SyncOut
+from app.services import usage
 from app.services.urls import is_supported, normalize_url, site_of
 from app.worker import enqueue
 
@@ -42,6 +44,8 @@ async def apply_sync(session: AsyncSession, user_id: int, payload: SyncIn) -> Sy
     await _soft_delete_orphans(session, user_id)
     # Same transaction: the jobs exist only if the sync is saved.
     await enqueue(session, "fetch_page", [{"document_id": i} for i in new_doc_ids])
+    await enqueue(session, "tag_bookmark", await _untagged_summarised(session, bookmark_ids))
+    await _summarise_front_page(session, user_id)
     await session.commit()
 
     active = await session.scalar(
@@ -83,6 +87,52 @@ async def _upsert_documents(
         )
         ids.update(dict(result.all()))
     return ids, new_ids
+
+
+async def _summarise_front_page(session, user_id: int) -> None:
+    """Queue summaries for the newest FRONT_PAGE_SUMMARIES bookmarks that have none yet, so the
+    front page fills in by itself after a sync (owner, 2026-11-04).
+
+    Each counts towards the daily limit like a Summarise click; at the limit the rest just keep
+    their Summarise button (the Limit reached dialog only opens on a click). Summaries are shared
+    per page, so one someone already made (or is making) costs nothing. Dead links are left out:
+    they're not on the front page.
+    """
+    front_page = get_settings().front_page_summaries
+    if front_page <= 0:
+        return
+    newest = await session.scalars(
+        select(Bookmark)
+        .where(
+            Bookmark.user_id == user_id,
+            Bookmark.deleted_at.is_(None),
+            ~Bookmark.document.has(Document.status == DocumentStatus.dead),
+        )
+        .order_by(Bookmark.added_at.desc(), Bookmark.id.desc())
+        .limit(front_page)
+    )
+    for bookmark in newest.unique():
+        document = bookmark.document
+        if document.summary_status is not None:  # done, working, or failed (the button retries)
+            continue
+        if not await usage.take_ai_use(session, user_id):
+            break
+        document.summary_status = "working"
+        payload = {"document_id": document.id, "title": bookmark.title, "auto": True}
+        await enqueue(session, "summarise", [{**payload, "user_id": user_id}])
+
+
+async def _untagged_summarised(session, bookmark_ids: dict[str, int]) -> list[dict]:
+    """Synced bookmarks of pages someone already summarised that the AI hasn't tagged yet.
+    Summaries are shared but tags are per user, so a newcomer to the page gets a tag job."""
+    rows = await session.scalars(
+        select(Bookmark.id).where(
+            Bookmark.id.in_(list(bookmark_ids.values())),
+            Bookmark.ai_tagged_at.is_(None),
+            Bookmark.document.has(Document.summary_status == "done"),
+        )
+    )
+    return [{"bookmark_id": i} for i in rows]
 
 
 async def _upsert_bookmarks(session, user_id, by_url, doc_ids) -> dict[str, int]:

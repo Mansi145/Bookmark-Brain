@@ -10,9 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Tags: every account starts with 10 tags to use, rename or delete. Tag a bookmark from its detail panel, or several at once with Select; filter the feed and search by one or more tags; manage tags from the sidebar.
+- When a summary is made, the AI adds up to 2 of your own tags to the bookmark. It never makes new tags or puts back one you removed. Bookmarks already summarised were tagged once.
 
 ### Changed
 
+- After a sync, your newest 30 bookmarks are summarised without a click, so the front page fills in by itself (within the daily limit).
+- Ask answers in a few seconds instead of about a minute.
 - Sidebar sections fold from their headings, and stay folded on that device.
 
 ## [0.3.0] - 2026-11-03
