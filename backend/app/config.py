@@ -6,13 +6,16 @@ variable fails loudly on boot instead of halfway through a request.
 
 import os
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Neon's connection string can be pasted as it is (see asyncpg_url).
     database_url: str = "postgresql+asyncpg://bb:bb@localhost:5432/bookmark_brain"
     frontend_origin: str = "http://localhost:5173"
 
@@ -89,6 +92,25 @@ class Settings(BaseSettings):
 
     # Phase 7: cron endpoints.
     internal_cron_secret: str = ""
+
+    @field_validator("database_url")
+    @classmethod
+    def asyncpg_url(cls, url: str) -> str:
+        """Make a plain Postgres URL (what Neon gives you) work with the asyncpg driver.
+
+        Neon's looks like postgresql://…/db?sslmode=require&channel_binding=require. SQLAlchemy
+        needs "+asyncpg" in the scheme to use the async driver, and asyncpg doesn't know the libpq
+        options sslmode / channel_binding: it takes ssl=require instead.
+        """
+        parts = urlsplit(url)
+        scheme = (
+            "postgresql+asyncpg" if parts.scheme in ("postgres", "postgresql") else parts.scheme
+        )
+        query = dict(parse_qsl(parts.query))
+        if query.pop("sslmode", None) in ("require", "verify-ca", "verify-full"):
+            query["ssl"] = "require"
+        query.pop("channel_binding", None)
+        return urlunsplit(parts._replace(scheme=scheme, query=urlencode(query)))
 
 
 @lru_cache

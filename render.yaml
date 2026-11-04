@@ -1,0 +1,58 @@
+# Render Blueprint: the API as one free web service (deploy skill). In Render: New → Blueprint →
+# this repo. Settings marked `sync: false` are secrets or URLs you paste in Render's dashboard;
+# they're never stored here.
+services:
+  - type: web
+    name: bookmark-brain-api # → https://bookmark-brain-api.onrender.com (frontend/vercel.json)
+    runtime: python
+    plan: free
+    rootDir: backend
+    branch: development
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run --no-dev uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health # cheap: no database or AI calls
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      # Neon's connection string, pasted as Neon shows it (app/config.py converts it).
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true # a random secret made by Render, kept across deploys
+      # The app's address on Vercel, e.g. https://bookmark-brain.vercel.app. Both are the app's
+      # address: the browser reaches the API through it (Vercel forwards /api/…).
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: API_ORIGIN
+        sync: false
+      # The browser only ever talks to the Vercel address, so the cookie is first-party.
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_COOKIE_SAMESITE
+        value: lax
+      - key: WORKER_ENABLED
+        value: "true"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      # GitHub sign-in: a separate OAuth App for production (its callback is the Vercel address
+      # + /api/auth/github/callback). Leave empty to turn GitHub sign-in off.
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      # Optional fallbacks in the AI chain; a provider without a key is skipped.
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      # Optional: the Limit reached dialog's "Notify the maintainer".
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAINTAINER_EMAIL
+        sync: false
+      # Never set here: LANGSMITH_* (traces would carry users' data) and DEV_TOOLS (lets anyone
+      # reset their own daily limit).

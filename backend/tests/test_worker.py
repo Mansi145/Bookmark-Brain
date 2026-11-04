@@ -1,5 +1,6 @@
 """The job queue: claiming, success, retries with back-off, giving up, stale jobs."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -136,3 +137,40 @@ async def test_recently_claimed_job_is_left_alone(handlers):
         )
         await session.commit()
     assert await run_once() is False
+
+
+# --- Sleeping while idle (so a database that suspends when idle can) ---------------------
+
+
+async def test_committing_new_jobs_wakes_the_idle_loops(monkeypatch):
+    new_jobs = asyncio.Event()
+    monkeypatch.setattr(worker, "_new_jobs", new_jobs)
+
+    async with TestSession() as session:
+        await worker.enqueue(session, "fetch_page", [{"document_id": 1}])
+        await session.rollback()  # never committed: nothing to wake for
+    assert not new_jobs.is_set()
+
+    async with TestSession() as session:
+        await worker.enqueue(session, "fetch_page", [{"document_id": 1}])
+        assert not new_jobs.is_set()  # not before the commit: the loops couldn't see the job yet
+        await session.commit()
+    assert new_jobs.is_set()
+
+
+async def test_an_idle_loop_sleeps_until_the_next_job_is_due():
+    assert await worker.idle_seconds(TestSession) == worker.IDLE_SECONDS  # nothing queued
+
+    async with TestSession() as session:
+        session.add(
+            Job(kind="fetch_page", payload={}, run_after=datetime.now(UTC) + timedelta(minutes=2))
+        )
+        await session.commit()
+    assert 100 < await worker.idle_seconds(TestSession) <= 120
+
+    async with TestSession() as session:
+        session.add(
+            Job(kind="fetch_page", payload={}, run_after=datetime.now(UTC) - timedelta(minutes=1))
+        )
+        await session.commit()
+    assert await worker.idle_seconds(TestSession) == worker.POLL_SECONDS  # overdue: look again soon
