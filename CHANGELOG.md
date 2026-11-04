@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Tags: every account starts with 10 tags to use, rename or delete. Tag a bookmark from its detail panel, or several at once with Select; filter the feed and search by one or more tags; manage tags from the sidebar.
+
+### Changed
+
+- Sidebar sections fold from their headings, and stay folded on that device.
+
 ## [0.3.0] - 2026-11-03
 
 Covers Phases 3 and 4 of the [plan](docs/PLAN.md): search and Ask your bookmarks.

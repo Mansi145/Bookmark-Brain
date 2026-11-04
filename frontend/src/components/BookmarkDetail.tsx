@@ -7,6 +7,7 @@ import { useSummarise } from '../hooks/useSummarise'
 import { age, capitalize } from '../lib/format'
 import { keptInPlace, LEAVE_MS, updateCachedBookmark } from '../lib/cache'
 import { canSummarise } from '../lib/summaries'
+import DetailTags from './DetailTags'
 import FreePlanNote from './FreePlanNote'
 import SiteIcon from './SiteIcon'
 import { SummariseAction } from './Summarise'
@@ -14,8 +15,7 @@ import { SummariseAction } from './Summarise'
 // Bookmark detail (design board FeedDetail): a 480 px panel from the right over a dark
 // backdrop (full screen on phones). Close button; site; title; when it was saved; Open page,
 // Mark as read, Re-summarise; the free-plan note; the summary and key points; where it's saved
-// and the full URL.
-// The design's Tags section waits for tagging (Phase 5).
+// and the full URL. Tags sit between the summary and the details (DetailTags).
 
 export default function BookmarkDetail({ id, onClose }: { id: number; onClose: () => void }) {
   const close = useRef<HTMLButtonElement>(null)
@@ -140,6 +140,8 @@ function Details({ bookmark }: { bookmark: Bookmark }) {
           )}
         </section>
       )}
+
+      <DetailTags bookmark={bookmark} />
 
       <section aria-labelledby="detail-info" className="text-[13px] text-ink2">
         <Heading id="detail-info" className="mb-2">

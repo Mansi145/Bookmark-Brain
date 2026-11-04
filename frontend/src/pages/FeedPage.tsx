@@ -2,10 +2,25 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api } from '../api/client'
-import type { Bookmark, BookmarkPage, FacetCount, Facets, FeedSection, ReadState, SearchResults } from '../api/types'
+import type {
+  Bookmark,
+  BookmarkPage,
+  FacetCount,
+  Facets,
+  FeedSection,
+  ReadState,
+  SearchResults,
+  Tag,
+} from '../api/types'
 import BookmarkDetail from '../components/BookmarkDetail'
 import Newspaper, { FrontPageLoading, SectionSheet } from '../components/Newspaper'
 import SearchSheet from '../components/SearchSheet'
+import { SelectBar } from '../components/SelectMode'
+import SidebarSection from '../components/SidebarSection'
+import { TagIcon } from '../components/TagLine'
+import TagsGroup from '../components/TagsGroup'
+import { SelectionProvider, useSelectMode } from '../lib/selection'
+import { taggedCount, useTagFilter } from '../lib/tags'
 import { searchCount } from '../lib/format'
 import { groupBySaveDate, startOfWeek, type Edition } from '../lib/editions'
 
@@ -23,22 +38,31 @@ export default function FeedPage({ section }: { section: FeedSection }) {
   const readState = section === 'main' ? (params.get('state') as ReadState | null) : null
   // A search (?q=…, from the top bar's field) replaces the feed in place, sidebar filters and all.
   const query = (section === 'main' && params.get('q')?.trim()) || null
+  // Tags picked in the sidebar (?tag=…): bookmarks with all of them.
+  const tagFilter = useTagFilter()
+  const select = useSelectMode()
+  const tags = tagFilter.picked
 
-  const facets = useFacets(section)
+  const facets = useFacets(section, tags)
+  const tagNames = tags
+    .map((id) => facets.data?.tags.find((t) => t.id === id))
+    .filter((t): t is Tag & { count: number } => t !== undefined)
 
   // The main feed splits at the start of the week: Today and This week load by scrolling (all
-  // of them), Earlier in numbered pages (?page=2), newest first. The two sections just scroll.
-  const weekStart = section === 'main' ? startOfWeek().toISOString() : null
+  // of them), Earlier in numbered pages (?page=2), newest first. The two sections, and the
+  // feed filtered by tags (one sheet, board FeedTags), just scroll.
+  const weekStart = section === 'main' && tags.length === 0 ? startOfWeek().toISOString() : null
   const earlierPage = Math.max(1, Math.floor(Number(params.get('page'))) || 1)
   const withFilters = (query: URLSearchParams) => {
     if (folder) query.set('folder', folder)
     if (browser) query.set('browser', browser)
     if (readState) query.set('read_state', readState)
+    for (const tag of tags) query.append('tag', String(tag))
     return query
   }
 
   const feed = useInfiniteQuery({
-    queryKey: ['bookmarks', { section, folder, browser, readState, weekStart }],
+    queryKey: ['bookmarks', { section, folder, browser, readState, weekStart, tags }],
     enabled: !query,
     queryFn: ({ pageParam }) => {
       const query = withFilters(new URLSearchParams({ limit: '30', section }))
@@ -53,11 +77,15 @@ export default function FeedPage({ section }: { section: FeedSection }) {
   })
 
   const earlier = useQuery({
-    queryKey: ['bookmarks', 'earlier', { folder, browser, readState, weekStart, page: earlierPage }],
+    queryKey: ['bookmarks', 'earlier', { folder, browser, readState, weekStart, tags, page: earlierPage }],
     enabled: weekStart !== null && !query,
     queryFn: () => {
       const query = withFilters(
-        new URLSearchParams({ section, limit: String(EARLIER_PAGE_SIZE), page: String(earlierPage) }),
+        new URLSearchParams({
+          section,
+          limit: String(EARLIER_PAGE_SIZE),
+          page: String(earlierPage),
+        }),
       )
       query.set('saved_before', weekStart!)
       return api.get<BookmarkPage>(`/api/bookmarks?${query}`)
@@ -69,12 +97,13 @@ export default function FeedPage({ section }: { section: FeedSection }) {
 
   // Under 'bookmarks' like the feed, so a summary or "Mark as read" updates the results in place.
   const search = useQuery({
-    queryKey: ['bookmarks', 'search', { query, folder, browser }],
+    queryKey: ['bookmarks', 'search', { query, folder, browser, tags }],
     enabled: query !== null,
     queryFn: () => {
       const params = new URLSearchParams({ q: query! })
       if (folder) params.set('folder', folder)
       if (browser) params.set('browser', browser)
+      for (const tag of tags) params.append('tag', String(tag))
       return api.get<SearchResults>(`/api/search?${params}`)
     },
     staleTime: 30_000, // Back to a search you just made shows it straight away
@@ -84,6 +113,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
   const feedWithFilters = new URLSearchParams()
   if (folder) feedWithFilters.set('folder', folder)
   if (browser) feedWithFilters.set('browser', browser)
+  for (const tag of tags) feedWithFilters.append('tag', String(tag))
   const clearSearch = { pathname: '/', search: feedWithFilters.toString() }
   const searchStatus = search.data ? 'success' : search.isError ? 'error' : 'pending'
 
@@ -131,111 +161,158 @@ export default function FeedPage({ section }: { section: FeedSection }) {
   const bookmarks = feed.data?.pages.flatMap((p) => p.items) ?? []
   // First run: no browser has synced anything yet (facets list every browser, even at 0).
   const isFirstRun = facets.isSuccess && facets.data.browsers.length === 0
-  const isEmpty = facets.isSuccess && facets.data.total === 0 && !isFirstRun
+  const isEmpty = facets.isSuccess && facets.data.total === 0 && !isFirstRun && tags.length === 0
+  const noTagMatches = facets.isSuccess && facets.data.total === 0 && tags.length > 0
   const editions: Edition[] = groupBySaveDate(bookmarks)
   if (earlier.data && earlier.data.items.length > 0) {
-    editions.push({ key: 'earlier', title: 'Earlier', items: earlier.data.items })
+    editions.push({
+      key: 'earlier',
+      title: 'Earlier',
+      items: earlier.data.items,
+    })
   }
 
+  // Select mode is for the feed and the two sections, not search results.
+  const canSelect = !query && !isFirstRun && bookmarks.length > 0
+  const selecting = select.selecting && canSelect
+
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-wrap items-start gap-8 px-6 pt-8 pb-16">
-      <aside
-        aria-label="Filters"
-        className="flex flex-[1_1_220px] flex-col gap-7 rounded-2xl bg-panel px-3.5 py-[18px] wide:max-w-[260px]"
-      >
-        <FilterList
-          title="Browsers"
-          items={(facets.data?.browsers ?? []).map((f) => ({
-            ...f,
-            label: f.value,
-            indent: 0,
-          }))}
-          active={browser}
-          onSelect={(v) => setFilter('browser', v)}
-          capitalize
-        />
-        <FilterList
-          title="Folders"
-          items={folderItems(facets.data?.folders ?? [])}
-          active={folder}
-          onSelect={(v) => setFilter('folder', v)}
-        />
-      </aside>
+    <SelectionProvider value={{ selecting, selected: select.selected, toggle: select.toggle }}>
+      <div className="mx-auto flex max-w-[1280px] flex-wrap items-start gap-8 px-6 pt-8 pb-16">
+        <aside
+          aria-label="Filters"
+          className="flex flex-[1_1_220px] flex-col gap-7 rounded-2xl bg-panel px-3.5 py-[18px] wide:max-w-[260px]"
+        >
+          <FilterList
+            id="browsers"
+            title="Browsers"
+            items={(facets.data?.browsers ?? []).map((f) => ({
+              ...f,
+              label: f.value,
+              indent: 0,
+            }))}
+            active={browser}
+            onSelect={(v) => setFilter('browser', v)}
+            capitalize
+          />
+          <FilterList
+            id="folders"
+            title="Folders"
+            items={folderItems(facets.data?.folders ?? [])}
+            active={folder}
+            onSelect={(v) => setFilter('folder', v)}
+          />
+          {facets.data && !isFirstRun && <TagsGroup inUse={facets.data.tags} />}
+        </aside>
 
-      <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-3.5 wide:p-6">
-        <div className="mb-[22px]">
-          <h1 className="font-serif text-[40px] leading-[1.1] font-bold tracking-[-0.015em]">
-            {query ? 'Search results' : TITLES[section]}
-          </h1>
-          {query && (
-            <p className="mt-2 text-sm text-ink2">
-              {searchStatus === 'pending' && 'Searching your bookmarks…'}
-              {searchStatus === 'error' && 'Search didn’t finish'}
-              {search.data && searchCount(search.data.items.length, search.data.more)}
-              {' · '}
-              <Link to={clearSearch} className="font-medium text-ink">
-                Clear search
-              </Link>
-            </p>
-          )}
-          {!query && facets.data && (
-            <p className="mt-2 text-sm text-ink2">
-              {facets.data.total} {facets.data.total === 1 ? 'bookmark' : 'bookmarks'}
-              {isFirstRun && ' · no browser connected yet'}
-              {facets.data.pending > 0 && ` · ${facets.data.pending} being fetched`}
-            </p>
-          )}
-        </div>
-
-        {!isFirstRun && !query && <FeedViewsBar section={section} readState={readState} />}
-
-        {(folder || browser) && (
-          <div className="mb-4 flex items-center gap-2 text-sm text-ink2">
-            Showing {[browser, folder].filter(Boolean).join(' · ')}
-            <button
-              onClick={() => setParams(query ? { q: query } : {})}
-              className="cursor-pointer border-0 bg-transparent text-ink underline"
-            >
-              Clear
-            </button>
+        <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-3.5 wide:p-6">
+          <div className="mb-[22px]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="font-serif text-[40px] leading-[1.1] font-bold tracking-[-0.015em]">
+                {query ? 'Search results' : TITLES[section]}
+              </h1>
+              {canSelect && !selecting && (
+                <button
+                  type="button"
+                  onClick={select.start}
+                  className="h-10 cursor-pointer rounded-full border border-line bg-surface px-4 text-sm font-medium text-ink"
+                >
+                  Select
+                </button>
+              )}
+            </div>
+            {query && (
+              <p className="mt-2 text-sm text-ink2">
+                {searchStatus === 'pending' && 'Searching your bookmarks…'}
+                {searchStatus === 'error' && 'Search didn’t finish'}
+                {search.data && searchCount(search.data.items.length, search.data.more)}
+                {' · '}
+                <Link to={clearSearch} className="font-medium text-ink">
+                  Clear search
+                </Link>
+              </p>
+            )}
+            {!query && facets.data && tags.length > 0 && (
+              <p className="mt-2 text-sm text-ink2">{taggedCount(facets.data.total, tags.length)}</p>
+            )}
+            {!query && facets.data && tags.length === 0 && (
+              <p className="mt-2 text-sm text-ink2">
+                {facets.data.total} {facets.data.total === 1 ? 'bookmark' : 'bookmarks'}
+                {isFirstRun && ' · no browser connected yet'}
+                {facets.data.pending > 0 && ` · ${facets.data.pending} being fetched`}
+              </p>
+            )}
+            {tags.length > 0 && <TaggedPills tags={tagNames} onRemove={tagFilter.remove} onClear={tagFilter.clear} />}
           </div>
-        )}
 
-        {query && (
-          <SearchSheet
-            query={query}
-            status={searchStatus}
-            items={search.data?.items ?? []}
-            more={search.data?.more ?? false}
-            onRetry={() => search.refetch()}
-            clearTo={clearSearch}
-          />
-        )}
+          {selecting ? (
+            <SelectBar selected={select.selected} onDone={select.stop} />
+          ) : (
+            !isFirstRun && !query && <FeedViewsBar section={section} readState={readState} />
+          )}
 
-        {!query && isFirstRun && <FirstRun />}
-        {!query && isEmpty && <EmptyState section={section} />}
-        {feed.isError && <p className="text-dead-fg">Couldn't load bookmarks: {feed.error.message}</p>}
+          {(folder || browser) && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-ink2">
+              Showing {[browser, folder].filter(Boolean).join(' · ')}
+              <button
+                onClick={() => setParams(query ? { q: query } : {})}
+                className="cursor-pointer border-0 bg-transparent text-ink underline"
+              >
+                Clear
+              </button>
+            </div>
+          )}
 
-        {/* Everything is a newspaper (board Main): the feed as editions, the two sections as one
+          {query && (
+            <SearchSheet
+              query={query}
+              status={searchStatus}
+              items={search.data?.items ?? []}
+              more={search.data?.more ?? false}
+              onRetry={() => search.refetch()}
+              clearTo={clearSearch}
+            />
+          )}
+
+          {!query && isFirstRun && <FirstRun />}
+          {!query && isEmpty && <EmptyState section={section} />}
+          {!query && noTagMatches && <NoTagMatches tags={tagNames} onClear={tagFilter.clear} />}
+          {feed.isError && <p className="text-dead-fg">Couldn't load bookmarks: {feed.error.message}</p>}
+
+          {/* Everything is a newspaper (board Main): the feed as editions, the two sections as one
             sheet each. */}
-        {section === 'main' && !query && feed.isPending && !isFirstRun && <FrontPageLoading />}
-        {section === 'main' && !query && (
-          <Newspaper
-            editions={editions}
-            earlier={{ page: earlierPage, total: earlierTotal, pageSize: EARLIER_PAGE_SIZE }}
-            view={readState}
-          />
-        )}
-        {section !== 'main' && bookmarks.length > 0 && (
-          <SectionSheet {...SHEETS[section]} count={facets.data?.total ?? bookmarks.length} items={bookmarks} />
-        )}
+          {section === 'main' && !query && feed.isPending && !isFirstRun && <FrontPageLoading />}
+          {section === 'main' && !query && tags.length > 0 && bookmarks.length > 0 && (
+            <SectionSheet
+              title={tagNames.map((t) => t.name).join(' · ')}
+              line=""
+              count={facets.data?.total ?? bookmarks.length}
+              items={bookmarks}
+              columns={2}
+            />
+          )}
+          {section === 'main' && !query && tags.length === 0 && (
+            <Newspaper
+              editions={editions}
+              earlier={{
+                page: earlierPage,
+                total: earlierTotal,
+                pageSize: EARLIER_PAGE_SIZE,
+              }}
+              view={readState}
+            />
+          )}
+          {section !== 'main' && bookmarks.length > 0 && (
+            <SectionSheet {...SHEETS[section]} count={facets.data?.total ?? bookmarks.length} items={bookmarks} />
+          )}
 
-        <div ref={sentinel} hidden={query !== null} className="py-7 text-center text-sm text-ink2">
-          {((section !== 'main' && feed.isPending) || isFetchingNextPage) && 'Loading more…'}
-        </div>
-      </main>
-      {openId && <BookmarkDetail key={openId} id={openId} onClose={closeDetail} />}
-    </div>
+          <div ref={sentinel} hidden={query !== null} className="py-7 text-center text-sm text-ink2">
+            {((weekStart === null && feed.isPending) || isFetchingNextPage) && 'Loading more…'}
+          </div>
+        </main>
+        {openId && <BookmarkDetail key={openId} id={openId} onClose={closeDetail} />}
+      </div>
+    </SelectionProvider>
   )
 }
 
@@ -253,15 +330,23 @@ function pollInterval(items: Bookmark[], updates: number) {
 
 // The two section sheets' mastheads (boards FeedSignIn / FeedDead).
 const SHEETS = {
-  sign_in: { title: 'Needs sign-in', line: 'Pages behind an account or a subscription' },
+  sign_in: {
+    title: 'Needs sign-in',
+    line: 'Pages behind an account or a subscription',
+  },
   dead: { title: 'Dead links', line: 'Pages that no longer load on the web' },
 }
 
-/** Counts for one section. Shared by the page and the views bar (same cache key). */
-function useFacets(section: FeedSection) {
+/** Counts for one section (narrowed by picked tags). Shared by the page and the views bar. */
+function useFacets(section: FeedSection, tags: number[] = []) {
   return useQuery({
-    queryKey: ['facets', section],
-    queryFn: () => api.get<Facets>(`/api/bookmarks/facets?section=${section}`),
+    queryKey: ['facets', section, tags],
+    queryFn: () => {
+      const params = new URLSearchParams({ section })
+      for (const tag of tags) params.append('tag', String(tag))
+      return api.get<Facets>(`/api/bookmarks/facets?${params}`)
+    },
+    placeholderData: keepPreviousData, // the sidebar doesn't flicker while a tag is picked
     // Counts change as pages finish fetching (and may move to another section).
     refetchInterval: (query) =>
       (query.state.data?.pending ?? 0) > 0 && query.state.dataUpdateCount < 40 ? 3000 : false,
@@ -348,6 +433,7 @@ function folderItems(folders: FacetCount[]): FilterItem[] {
 }
 
 function FilterList(props: {
+  id: string
   title: string
   items: FilterItem[]
   active: string | null
@@ -356,8 +442,7 @@ function FilterList(props: {
 }) {
   if (props.items.length === 0) return null
   return (
-    <section>
-      <h2 className="mb-2 text-xs font-semibold tracking-[0.06em] text-ink2 uppercase">{props.title}</h2>
+    <SidebarSection id={props.id} title={props.title}>
       <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
         {props.items.map((item) => {
           const active = props.active === item.value
@@ -381,7 +466,76 @@ function FilterList(props: {
           )
         })}
       </ul>
-    </section>
+    </SidebarSection>
+  )
+}
+
+/** "Tagged" + each picked tag as a pill with ×, then Clear (board FeedTags). */
+function TaggedPills(props: { tags: Tag[]; onRemove: (id: number) => void; onClear: () => void }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <span className="text-sm text-ink2">Tagged</span>
+      {props.tags.map((tag) => (
+        <span
+          key={tag.id}
+          className="flex h-9 items-center gap-1 rounded-full bg-accent pr-1 pl-3.5 text-sm font-semibold text-on-accent"
+        >
+          {tag.name}
+          <button
+            type="button"
+            aria-label={`Remove ${tag.name} from the filter`}
+            onClick={() => props.onRemove(tag.id)}
+            className="grid size-7 cursor-pointer place-items-center rounded-full border-0 bg-transparent text-on-accent hover:bg-[rgba(255,255,255,0.14)]"
+          >
+            <svg
+              aria-hidden
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+            >
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </span>
+      ))}
+      <button
+        type="button"
+        onClick={props.onClear}
+        className="h-9 cursor-pointer border-0 bg-transparent px-1 text-sm font-medium text-ink underline"
+      >
+        Clear
+      </button>
+    </div>
+  )
+}
+
+/** No bookmark has every picked tag (board FeedTagsNone). */
+function NoTagMatches(props: { tags: Tag[]; onClear: () => void }) {
+  const names = props.tags.map((t) => t.name)
+  const both = names.length > 1 ? `both ${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]
+  return (
+    <div className="flex flex-col items-center rounded-xl border border-line bg-surface px-6 py-10 text-center">
+      <span aria-hidden className="grid size-12 place-items-center rounded-full bg-accent text-on-accent">
+        <TagIcon size={22} />
+      </span>
+      <h2 className="mt-4 font-serif text-[21px] font-bold">
+        {names.length > 1 ? 'No bookmarks have all these tags' : 'No bookmarks have this tag here'}
+      </h2>
+      <p className="mt-1 text-sm text-ink2">
+        Nothing here is tagged {both}. {names.length > 1 ? 'Remove a tag to see more.' : ''}
+      </p>
+      <button
+        type="button"
+        onClick={props.onClear}
+        className="mt-4 h-10 cursor-pointer rounded-[10px] border border-line bg-surface px-4 font-medium text-ink"
+      >
+        Clear tags
+      </button>
+    </div>
   )
 }
 
