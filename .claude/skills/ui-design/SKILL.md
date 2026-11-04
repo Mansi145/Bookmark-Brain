@@ -168,7 +168,9 @@ newspaper front page at the end of this section ("Newspaper feed").
   (the site name is next to it). Also used on the landing preview card and the How it works
   examples; NOT in the sidebar. Apart from these, the only image is the top lead story's preview
   image (see "Newspaper feed"); no other page images.
-- **Summaries are on demand.** Every row without a summary has a **Summarise** button (36 px,
+- **Summaries: the front page fills in by itself** (owner, 2026-11-04): after a sync the newest 30
+  bookmarks are summarised without a click (their stories show the working state below), within
+  the daily limit; past it, and for older bookmarks, it's on demand. Every row without a summary has a **Summarise** button (36 px,
   outlined, three-lines icon) under the title, where the summary will appear:
   idle "Summarise" → working: `accent2` pill, white spinner + "Summarising…", + one skeleton bar →
   done: the summary, as many lines as the story's size allows (briefs: Open summary) → failed:

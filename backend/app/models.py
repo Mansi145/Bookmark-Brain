@@ -204,6 +204,9 @@ class Bookmark(TimestampMixin, Base):
     )
     # Set when no browser has this bookmark any more (soft delete keeps AI work and read state).
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the AI last picked tags for it (worker.tag_bookmark), even if it picked none. Earlier
+    # than the summary's summarised_at means the current summary hasn't been used for tags yet.
+    ai_tagged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     document: Mapped[Document] = relationship(lazy="joined")
     sources: Mapped[list["BookmarkSource"]] = relationship(

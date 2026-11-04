@@ -31,6 +31,7 @@ STARTER_TAGS = (
 MAX_NAME = 30
 MAX_PER_BOOKMARK = 5
 MAX_PER_USER = 50  # the starter tags count
+MAX_AI_PER_BOOKMARK = 2  # the AI never adds more than this to one bookmark, in total
 
 
 class TagError(Exception):
@@ -225,3 +226,28 @@ async def remove_from_many(session: AsyncSession, tag: Tag, bookmark_ids: list[i
     for bookmark_id in bookmark_ids:
         removed += await remove(session, bookmark_id, tag.id)
     return removed
+
+
+async def ai_choices(session: AsyncSession, bookmark: Bookmark) -> tuple[int, list[Tag]]:
+    """What the AI may still do for a bookmark: how many tags it may add, and the user's tags it
+    may pick from (not already on the bookmark, and never one the user removed from it)."""
+    rows = (
+        await session.execute(
+            select(BookmarkTag.tag_id, BookmarkTag.source).where(
+                BookmarkTag.bookmark_id == bookmark.id
+            )
+        )
+    ).all()
+    by_ai = sum(1 for _, source in rows if source == TagSource.ai)
+    room = min(MAX_AI_PER_BOOKMARK - by_ai, MAX_PER_BOOKMARK - len(rows))
+    removed = select(RemovedTag.tag_id).where(RemovedTag.bookmark_id == bookmark.id)
+    candidates = await session.scalars(
+        select(Tag)
+        .where(
+            Tag.user_id == bookmark.user_id,
+            Tag.id.not_in([tag_id for tag_id, _ in rows]),
+            Tag.id.not_in(removed),
+        )
+        .order_by(func.lower(Tag.name))
+    )
+    return max(room, 0), list(candidates)

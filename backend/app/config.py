@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_fallback_model: str = "gemini-2.5-flash"
+    # Ask tries this one first. Its answers are watched as they're written, and on the free tier
+    # gemini-3.5-flash-lite took about 20 s per call (even for "hi") against about 1 s for
+    # gemini-2.5-flash (2026-11-03), so an answer took a minute. Summaries run in the background,
+    # where that doesn't matter, so they keep GEMINI_MODEL. Leave empty to use the usual order.
+    ask_model: str = "gemini-2.5-flash"
     openrouter_api_key: str = ""
     openrouter_model: str = "nvidia/nemotron-3.5-super-vl:free"
     nvidia_api_key: str = ""
@@ -58,6 +63,10 @@ class Settings(BaseSettings):
     # Summaries a user may start per UTC day. The free quotas are per API key, so all users
     # share them; this stops one person from using up the day.
     ai_daily_limit_per_user: int = 50
+    # After a sync, the newest this-many bookmarks are summarised without a click (owner,
+    # 2026-11-04: the front page fills in by itself), within the daily limit above. 0 turns it
+    # off, so every summary waits for its Summarise button.
+    front_page_summaries: int = 30
 
     # Email (app/services/mail.py), for the Limit reached dialog's "Notify the maintainer".
     # Resend's free plan: 100 emails a day. Without your own domain, Resend only sends from its

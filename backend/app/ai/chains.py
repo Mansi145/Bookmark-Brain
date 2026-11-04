@@ -1,8 +1,8 @@
 """Chains: a prompt + a model + an output schema, for one task each.
 
-summarise_document() is the first one. It builds the prompt from what we stored about a page,
-asks the model for a `Summary` (structured output, so no text parsing), and checks the
-answer before anyone sees it.
+summarise_document() builds the prompt from what we stored about a page, asks the model for a
+`Summary` (structured output, so no text parsing), and checks the answer before anyone sees it.
+pick_tags() does the same for choosing a bookmark's tags from the user's own list.
 """
 
 from dataclasses import dataclass
@@ -111,3 +111,43 @@ def _clean_summary(summary: str) -> str:
 def _model_name(raw) -> str:
     metadata = getattr(raw, "response_metadata", None) or {}
     return str(metadata.get("model_name") or metadata.get("model") or "unknown")[:64]
+
+
+MAX_AI_TAGS = 2  # the most the AI adds to one bookmark (owner, 2026-11-03)
+
+
+class TagChoice(BaseModel):
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Up to 2 names copied exactly from the list, best first. Empty if none fit.",
+    )
+
+
+async def pick_tags(
+    *, title: str, summary: str, key_points: list[str], tags: list[str], trace: dict | None = None
+) -> list[str]:
+    """Up to MAX_AI_TAGS of `tags` (the user's own) that fit a summarised page.
+
+    The model may only choose, never invent: any name that isn't in `tags` is dropped, so the
+    AI can't create tags (owner). Raises BadAnswer for an unparseable answer.
+    """
+    listed = "\n".join(f"- {tag}" for tag in tags)
+    points = "\n".join(f"- {point}" for point in key_points)
+    page = f"Title: {title}\nSummary: {summary}\nKey points:\n{points}"
+    out = await llm.get_structured_model(TagChoice).ainvoke(
+        [
+            SystemMessage(load_prompt("tag")),
+            HumanMessage(f"Tags to choose from:\n{listed}\n\n<article>\n{page}\n</article>"),
+        ],
+        config={"run_name": "tag", "metadata": trace or {}},
+    )
+    parsed: TagChoice | None = out.get("parsed")
+    if parsed is None:
+        raise BadAnswer(f"Unparseable answer: {out.get('parsing_error')}")
+    by_name = {tag.lower(): tag for tag in tags}
+    picked: list[str] = []
+    for name in parsed.tags:
+        tag = by_name.get(" ".join(name.split()).lower())
+        if tag and tag not in picked:
+            picked.append(tag)
+    return picked[:MAX_AI_TAGS]

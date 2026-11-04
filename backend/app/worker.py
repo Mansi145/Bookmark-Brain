@@ -26,8 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.ai import chains, llm
 from app.ai.embedding import embedding_text, saved_title
 from app.db import SessionLocal
-from app.models import Document, DocumentStatus, Job, JobStatus
-from app.services import archive, fetch
+from app.models import Bookmark, Document, DocumentStatus, Job, JobStatus, TagSource
+from app.services import archive, fetch, tags, usage
 from app.services.access import PAYWALL, detect_access, is_paywalled
 from app.services.extract import extract_article
 from app.services.icons import default_icon, find_icon
@@ -200,10 +200,14 @@ async def _read_article(document: Document, html: str, source: str) -> bool:
 # for 10 minutes. Waiting for the page itself to be fetched first is capped too.
 SUMMARY_ATTEMPTS = 2
 WAIT_FOR_PAGE = timedelta(minutes=2)
+# Front-page summaries queued by a sync (services/sync.py) start before most pages are fetched,
+# and a first sync fetches hundreds, so they wait longer for the page's text.
+AUTO_WAIT_FOR_PAGE = timedelta(minutes=10)
 
 
 async def summarise(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
-    """Write the AI summary for one document (a user clicked Summarise or Re-summarise).
+    """Write the AI summary for one document (a user clicked Summarise or Re-summarise, or a sync
+    queued it for the front page: payload "auto" with the user's id).
 
     Uses the best text we have: the page's text, a Wayback copy's text for a dead link, or
     only the title and description (JavaScript apps, bot-protected pages). Sets
@@ -215,10 +219,18 @@ async def summarise(session: AsyncSession, job: Job, http: httpx.AsyncClient) ->
     # The page's own title, else the one the user saved the bookmark under.
     title = document.title or job.payload.get("title") or document.url
 
+    auto = job.payload.get("auto", False)
     if document.status == DocumentStatus.pending:
         # The page is still being fetched; its text makes a much better summary.
-        if datetime.now(UTC) - job.created_at < WAIT_FOR_PAGE:
+        if datetime.now(UTC) - job.created_at < (AUTO_WAIT_FOR_PAGE if auto else WAIT_FOR_PAGE):
             raise RetryLater(5, "waiting for the page to be fetched")
+
+    if auto and document.status == DocumentStatus.dead and document.content_source != "archive":
+        # It turned out to be a dead link, which isn't on the front page and can only be
+        # summarised from an archived copy: back to "not asked", and the daily use is returned.
+        document.summary_status = None
+        await usage.give_back(session, job.payload["user_id"])
+        return
 
     text = document.content_text
     if document.status == DocumentStatus.dead and document.content_source != "archive":
@@ -252,6 +264,53 @@ async def summarise(session: AsyncSession, job: Job, http: httpx.AsyncClient) ->
     document.summary_status = "done"
     document.embedded_at = None  # embed the summary from now on (ai/embedding.py)
     await queue_embedding(session)
+    # Summaries are shared, tags are per user: everyone who saved this page gets their own pick.
+    bookmark_ids = await session.scalars(
+        select(Bookmark.id).where(
+            Bookmark.document_id == document.id, Bookmark.deleted_at.is_(None)
+        )
+    )
+    await enqueue(session, "tag_bookmark", [{"bookmark_id": i} for i in bookmark_ids])
+
+
+async def tag_bookmark(session: AsyncSession, job: Job, http: httpx.AsyncClient) -> None:
+    """Let the AI add up to 2 of the user's own tags to a summarised bookmark (Phase 5).
+
+    Queued when a summary is made (for every bookmark of that page), when a page that already
+    has a summary is synced as a new bookmark, and once for every bookmark summarised before
+    AI tags existed (migration 0013). It reads the summary, not the page, so it's one small
+    call; it doesn't count towards the daily limit (owner). Runs once per summary
+    (ai_tagged_at), adds nothing to a bookmark at 5 tags, and never re-adds a tag the user
+    removed (services/tags.py ai_choices).
+    """
+    bookmark = await session.get(Bookmark, job.payload["bookmark_id"])
+    if bookmark is None or bookmark.deleted_at is not None:
+        return
+    document = bookmark.document
+    if document.summary_status != "done" or not document.summary:
+        return
+    summarised = document.summarised_at
+    if bookmark.ai_tagged_at and (summarised is None or bookmark.ai_tagged_at >= summarised):
+        return  # already tagged from this summary
+
+    room, candidates = await tags.ai_choices(session, bookmark)
+    picked: list[str] = []
+    if room and candidates:
+        try:
+            picked = await chains.pick_tags(
+                title=document.title or bookmark.title,
+                summary=document.summary,
+                key_points=document.key_points or [],
+                tags=[tag.name for tag in candidates],
+                trace={"bookmark_id": bookmark.id, "document_id": document.id},
+            )
+        except chains.BadAnswer as err:
+            log.warning("Tags for bookmark %s rejected: %s", bookmark.id, err)
+        # Any other error (every model failed) is raised: the queue retries in 30 s, then 2 min.
+    by_name = {tag.name: tag for tag in candidates}
+    for name in picked[:room]:
+        await tags.add(session, bookmark, by_name[name], TagSource.ai)
+    bookmark.ai_tagged_at = datetime.now(UTC)
 
 
 # Pages per request to the embedding model (it takes up to 100).
@@ -322,6 +381,7 @@ async def _finish(
 
 # kind -> handler
 HANDLERS: dict[str, Handler] = {
+    "tag_bookmark": tag_bookmark,
     "fetch_page": fetch_page,
     "find_archive": find_archive,
     "summarise": summarise,

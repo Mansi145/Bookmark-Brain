@@ -5,7 +5,7 @@ Every free tier has small limits, so we chain several providers. LangChain's
 timeout), the same input goes to the next model straight away. Callers just see one model
 that is much harder to break. The order:
 
-1. Gemini (GEMINI_MODEL), the main model
+1. Gemini (GEMINI_MODEL), the main model; Ask tries ASK_MODEL before it
 2. a second Gemini model (GEMINI_FALLBACK_MODEL): its own free quota, same key
 3. OpenRouter's free models (OPENROUTER_API_KEY)
 4. NVIDIA NIM (NVIDIA_API_KEY), which hosts DeepSeek for free
@@ -63,14 +63,16 @@ def _openai_compatible(base_url: str, api_key: str, model: str) -> ChatOpenAI:
     )
 
 
-def _models() -> list[BaseChatModel]:
-    """The chain, first choice first, skipping providers that have no key."""
+def _models(first: str | None = None) -> list[BaseChatModel]:
+    """The chain, first choice first, skipping providers that have no key.
+
+    `first` moves one Gemini model to the front (Ask uses ASK_MODEL); the rest keep their order.
+    """
     s = get_settings()
     models: list[BaseChatModel] = []
     if s.google_api_key:
-        models.append(_gemini(s.gemini_model))
-        if s.gemini_fallback_model:
-            models.append(_gemini(s.gemini_fallback_model))
+        names = [first, s.gemini_model, s.gemini_fallback_model]
+        models += [_gemini(name) for name in dict.fromkeys(n for n in names if n)]
     if s.openrouter_api_key:
         models.append(_openai_compatible(OPENROUTER_URL, s.openrouter_api_key, s.openrouter_model))
     if s.nvidia_api_key:
@@ -97,8 +99,11 @@ def get_tool_model(tools: Sequence[BaseTool]) -> Runnable:
     model then answers either with text or with "tool calls": a tool name and arguments for us
     to run. It never runs anything itself. Like structured output, tools have to be bound to
     each model before `with_fallbacks`.
+
+    Someone watches every answer as it's written, so ASK_MODEL (a fast model) goes first; see
+    config.py.
     """
-    first, *rest = [m.bind_tools(tools) for m in _models()]
+    first, *rest = [m.bind_tools(tools) for m in _models(first=get_settings().ask_model)]
     return first.with_fallbacks(rest) if rest else first
 
 

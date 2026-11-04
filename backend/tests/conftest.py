@@ -15,6 +15,7 @@ os.environ["JWT_SECRET"] = "test-secret-" + "x" * 32
 os.environ["GOOGLE_CLIENT_ID"] = "test-client-id"
 os.environ["WORKER_ENABLED"] = "false"  # tests run jobs explicitly with run_once()
 os.environ["LANGSMITH_TRACING"] = "false"  # never send the fake models' runs to LangSmith
+os.environ["FRONT_PAGE_SUMMARIES"] = "0"  # syncs queue no summaries (test_front_page.py: on)
 
 import asyncpg  # noqa: E402
 import pytest  # noqa: E402
