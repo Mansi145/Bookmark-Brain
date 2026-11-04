@@ -188,7 +188,7 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
         </p>
         <p className="m-0 text-sm text-ink2">
           Want a copy first?{' '}
-          <a href={EXPORT_URL} className="font-medium text-ink">
+          <a href={EXPORT_URL} className="font-medium text-ink underline">
             Download my data
           </a>
         </p>

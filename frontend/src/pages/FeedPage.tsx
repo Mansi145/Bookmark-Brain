@@ -21,7 +21,7 @@ import { TagIcon } from '../components/TagLine'
 import TagsGroup from '../components/TagsGroup'
 import { SelectionProvider, useSelectMode } from '../lib/selection'
 import { taggedCount, useTagFilter } from '../lib/tags'
-import { searchCount } from '../lib/format'
+import { age, searchCount } from '../lib/format'
 import { groupBySaveDate, startOfWeek, type Edition } from '../lib/editions'
 
 // Earlier's pages (design board Main): 30 briefs each, newest first.
@@ -172,8 +172,8 @@ export default function FeedPage({ section }: { section: FeedSection }) {
     })
   }
 
-  // Select mode is for the feed and the two sections, not search results.
-  const canSelect = !query && !isFirstRun && bookmarks.length > 0
+  // Select mode is for the Feed only (not the two sections or search results).
+  const canSelect = section === 'main' && !query && !isFirstRun && bookmarks.length > 0
   const selecting = select.selecting && canSelect
 
   return (
@@ -202,7 +202,7 @@ export default function FeedPage({ section }: { section: FeedSection }) {
             active={folder}
             onSelect={(v) => setFilter('folder', v)}
           />
-          {facets.data && !isFirstRun && <TagsGroup inUse={facets.data.tags} />}
+          {section === 'main' && facets.data && !isFirstRun && <TagsGroup inUse={facets.data.tags} />}
         </aside>
 
         <main className="min-w-0 flex-[999_1_560px] rounded-2xl bg-panel p-3.5 wide:p-6">
@@ -233,13 +233,17 @@ export default function FeedPage({ section }: { section: FeedSection }) {
               </p>
             )}
             {!query && facets.data && tags.length > 0 && (
-              <p className="mt-2 text-sm text-ink2">{taggedCount(facets.data.total, tags.length)}</p>
+              <p className="mt-2 text-sm text-ink2">
+                {taggedCount(facets.data.total, tags.length)}
+                {syncedLine(facets.data)}
+              </p>
             )}
             {!query && facets.data && tags.length === 0 && (
               <p className="mt-2 text-sm text-ink2">
                 {facets.data.total} {facets.data.total === 1 ? 'bookmark' : 'bookmarks'}
                 {isFirstRun && ' · no browser connected yet'}
                 {facets.data.pending > 0 && ` · ${facets.data.pending} being fetched`}
+                {syncedLine(facets.data)}
               </p>
             )}
             {tags.length > 0 && <TaggedPills tags={tagNames} onRemove={tagFilter.remove} onClear={tagFilter.clear} />}
@@ -335,6 +339,13 @@ const SHEETS = {
     line: 'Pages behind an account or a subscription',
   },
   dead: { title: 'Dead links', line: 'Pages that no longer load on the web' },
+}
+
+/** " · synced from Chrome 2 min ago" after the count, once a browser has synced. */
+function syncedLine(facets: Facets) {
+  if (!facets.last_synced_at) return null
+  const from = facets.last_synced_from ? ` from ${facets.last_synced_from}` : ''
+  return ` · synced${from} ${age(facets.last_synced_at)}`
 }
 
 /** Counts for one section (narrowed by picked tags). Shared by the page and the views bar. */

@@ -137,14 +137,14 @@ export default function HowItWorksPage() {
               <div className="font-semibold">Largest Contentful Paint (LCP)</div>
               <div className="mt-1 flex items-center gap-2 text-[13px] text-on-accent2">
                 <SiteIcon iconUrl="/sample-icons/webdev.png" site="web.dev" light />
-                web.dev · matched by meaning
+                web.dev
               </div>
             </div>
             <div className="rounded-xl bg-accent2 px-3.5 py-3 text-on-accent">
               <div className="font-semibold">Using the Fetch API</div>
               <div className="mt-1 flex items-center gap-2 text-[13px] text-on-accent2">
                 <SiteIcon iconUrl="/sample-icons/mdn.png" site="developer.mozilla.org" light />
-                developer.mozilla.org · matched "pages"
+                developer.mozilla.org
               </div>
             </div>
           </div>

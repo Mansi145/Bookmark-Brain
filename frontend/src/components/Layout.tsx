@@ -256,7 +256,7 @@ function AskTab({ current }: { current: boolean }) {
           role="menu"
           aria-label="Ask"
           onKeyDown={(e) => menuKeys(e, list.current, close)}
-          className="absolute top-full left-0 z-30 mt-2.5 w-[300px] max-w-[calc(100vw-32px)] rounded-[14px] border border-line bg-surface p-2 text-sm text-ink shadow-[0_18px_50px_rgba(0,0,0,0.28)]"
+          className="absolute top-full right-0 z-30 mt-2.5 w-[300px] max-w-[calc(100vw-32px)] rounded-[14px] border border-line bg-surface p-2 text-sm text-ink shadow-[0_18px_50px_rgba(0,0,0,0.28)]"
         >
           <button
             type="button"

@@ -430,7 +430,8 @@ export function Story(props: {
   const meta = [
     bookmark.site,
     bookmark.reading_minutes && `${bookmark.reading_minutes} min read`,
-    age(bookmark.added_at),
+    // A dead link says when it was found dead rather than when it was saved (board FeedDead).
+    bookmark.status === 'dead' && bookmark.checked_at ? `checked ${age(bookmark.checked_at)}` : age(bookmark.added_at),
     bookmark.read_state === 'read' && !keptInPlace.has(bookmark.id) && 'Read',
   ]
 
