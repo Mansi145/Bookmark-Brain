@@ -84,9 +84,9 @@ function SiteLine({ bookmark }: { bookmark: Bookmark }) {
   const folders = [...new Set(bookmark.sources.map((s) => s.folder_path).filter(Boolean))]
   const browsers = [...new Set(bookmark.sources.map((s) => capitalize(s.browser)))]
   return (
-    <div className="flex min-w-0 items-center gap-2 text-[13px] text-ink2">
+    <div className="flex min-w-0 items-start gap-2 text-[13px] text-ink2">
       <SiteIcon iconUrl={bookmark.icon_url} site={bookmark.site} />
-      <span className="truncate">
+      <span className="min-w-0 wrap-anywhere">
         {[bookmark.site, folders.join(', '), browsers.join(', ')].filter(Boolean).join(' · ')}
       </span>
     </div>
@@ -117,7 +117,7 @@ function Details({ bookmark }: { bookmark: Bookmark }) {
               {bookmark.key_points.length > 0 && (
                 <>
                   <Heading className="mt-4">Key points</Heading>
-                  <ul className="mt-2 flex flex-col gap-1.5 pl-5 text-ink2">
+                  <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-ink2">
                     {bookmark.key_points.map((point) => (
                       <li key={point}>{point}</li>
                     ))}

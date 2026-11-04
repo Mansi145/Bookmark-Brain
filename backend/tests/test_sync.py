@@ -167,6 +167,21 @@ def test_sync_with_extension_token(client, anon_client):
     assert response.json()["active_bookmarks"] == 1
 
 
+def test_the_header_says_when_and_from_where_it_last_synced(client, anon_client):
+    facets = client.get("/api/bookmarks/facets").json()
+    assert facets["last_synced_at"] is None  # never synced: the header leaves it out
+
+    token = client.post("/api/tokens", json={"name": "Chrome extension"}).json()["token"]
+    anon_client.post(
+        "/api/sync",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"source": CHROME, "full": True, "upserts": [item("1", "https://a.com")]},
+    )
+    facets = client.get("/api/bookmarks/facets").json()
+    assert facets["last_synced_at"] is not None
+    assert facets["last_synced_from"] == "Chrome"
+
+
 def test_sync_requires_auth(anon_client):
     response = anon_client.post("/api/sync", json={"source": CHROME, "upserts": []})
     assert response.status_code == 401

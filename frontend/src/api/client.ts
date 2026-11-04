@@ -1,5 +1,7 @@
-// Base URL of the FastAPI backend. Set VITE_API_URL in .env.local (dev) or on Vercel (prod).
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+// Base URL of the FastAPI backend. In production it's the app's own address: Vercel forwards
+// /api/… to the server (frontend/vercel.json), so the session cookie is first-party and works in
+// every browser, Safari included. Locally it's the dev server; VITE_API_URL overrides either.
+export const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:8000')
 
 export class ApiError extends Error {
   status: number

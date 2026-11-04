@@ -48,6 +48,7 @@ export type Bookmark = {
   archive_url: string | null // Wayback Machine copy
   archived_on: string | null
   access: 'login' | 'paywall' | null // needs an account / subscription to read
+  checked_at: string | null // when the page was last fetched (dead links: "checked 2d ago")
   description: string | null // the site's own description, shown when there's no summary
   // The on-demand AI summary, shared by everyone who saved this URL.
   summary: string | null
@@ -86,6 +87,8 @@ export type Facets = {
   folders: FacetCount[]
   browsers: FacetCount[]
   tags: TagCount[] // every tag in use, counted in this section (unused ones: GET /api/tags)
+  last_synced_at: string | null // the most recent sync by any browser; null before the first
+  last_synced_from: string | null // e.g. "Chrome"; null when unknown
 }
 
 export type ArrivedBookmark = {

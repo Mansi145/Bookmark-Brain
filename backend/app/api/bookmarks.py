@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from app.auth.deps import CurrentUser
 from app.db import SessionDep
 from app.models import (
+    ApiToken,
     Bookmark,
     BookmarkSource,
     BookmarkTag,
@@ -225,7 +226,27 @@ async def facets(
         folders=await count_by(BookmarkSource.folder_path),
         browsers=await count_by(BookmarkSource.browser),
         tags=await _tag_counts(session, user.id, section),
+        **await _last_sync(session, user.id),
     )
+
+
+BROWSERS = {"chrome": "Chrome", "edge": "Edge", "brave": "Brave", "firefox": "Firefox"}
+
+
+async def _last_sync(session, user_id: int) -> dict:
+    """When the extension last synced, and from which browser. Every sync is a request with the
+    extension's token, which records last_used_at; the token is named after the browser at
+    connect ("Chrome extension")."""
+    token = await session.scalar(
+        select(ApiToken)
+        .where(ApiToken.user_id == user_id, ApiToken.last_used_at.is_not(None))
+        .order_by(ApiToken.last_used_at.desc())
+        .limit(1)
+    )
+    if token is None:
+        return {}
+    first_word = token.name.split(" ", 1)[0].lower()
+    return {"last_synced_at": token.last_used_at, "last_synced_from": BROWSERS.get(first_word)}
 
 
 async def _tag_counts(session, user_id: int, section: Section) -> list[TagCount]:
@@ -400,6 +421,7 @@ def bookmark_out(bookmark: Bookmark) -> BookmarkOut:
         archive_url=bookmark.document.archive_url,
         archived_on=bookmark.document.archived_on,
         access=bookmark.document.access,
+        checked_at=bookmark.document.fetched_at,
         description=bookmark.document.description,
         summary=bookmark.document.summary,
         key_points=bookmark.document.key_points or [],

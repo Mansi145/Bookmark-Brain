@@ -19,9 +19,10 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import httpx
-from sqlalchemy import and_, exists, func, insert, literal, or_, select, update
+from sqlalchemy import and_, event, exists, func, insert, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import Session
 
 from app.ai import chains, llm
 from app.ai.embedding import embedding_text, saved_title
@@ -37,7 +38,13 @@ log = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 3
 CONCURRENCY = 4  # jobs in flight at once; they mostly wait on the network
-POLL_SECONDS = 2.0  # how long an idle loop sleeps before checking again
+POLL_SECONDS = 2.0  # the shortest an idle loop sleeps before checking again
+# The longest. In production the database (Neon's free plan) suspends after 5 idle minutes and
+# its free hours count only the time it's awake, so an idle worker mustn't ask every 2 s. Jobs
+# this app queues wake the loops as soon as they're committed (wake_on_commit), and a loop with
+# nothing due sleeps until the next retry is due, so only jobs added from outside (a migration's
+# backfill, psql) can wait this long.
+IDLE_SECONDS = 30 * 60
 STALE_AFTER = timedelta(minutes=10)
 
 Handler = Callable[[AsyncSession, Job, httpx.AsyncClient], Awaitable[None]]
@@ -62,6 +69,23 @@ async def enqueue(session: AsyncSession, kind: str, payloads: list[dict]) -> Non
     """Add jobs in the caller's transaction (so they only exist if the caller commits)."""
     if payloads:
         await session.execute(insert(Job), [{"kind": kind, "payload": p} for p in payloads])
+        session.sync_session.info["queued_jobs"] = True  # wake the loops once it's committed
+
+
+# Set when a transaction that queued jobs commits; the idle loops wait on it. Made when the
+# loops start (running_workers), so it belongs to the server's event loop.
+_new_jobs: asyncio.Event | None = None
+
+
+@event.listens_for(Session, "after_commit")
+def wake_on_commit(session: Session) -> None:
+    if session.info.pop("queued_jobs", False) and _new_jobs is not None:
+        _new_jobs.set()
+
+
+@event.listens_for(Session, "after_rollback")
+def _forget_on_rollback(session: Session) -> None:
+    session.info.pop("queued_jobs", None)  # rolled back: those jobs never existed
 
 
 async def queue_embedding(session: AsyncSession) -> None:
@@ -478,26 +502,54 @@ async def run_once(
     return True
 
 
-async def _loop(stop: asyncio.Event, http: httpx.AsyncClient) -> None:
+async def idle_seconds(sessions: async_sessionmaker[AsyncSession]) -> float:
+    """How long an idle loop may sleep: until the next queued job is due (a retry, a job waiting
+    for its page) or a running one goes stale, between POLL_SECONDS and IDLE_SECONDS."""
+    async with sessions() as session:
+        next_due = await session.scalar(
+            select(
+                func.least(
+                    select(func.min(Job.run_after))
+                    .where(Job.status == JobStatus.queued)
+                    .scalar_subquery(),
+                    select(func.min(Job.locked_at) + STALE_AFTER)
+                    .where(Job.status == JobStatus.running)
+                    .scalar_subquery(),
+                )
+            )
+        )
+    if next_due is None:
+        return IDLE_SECONDS
+    seconds = (next_due - datetime.now(UTC)).total_seconds()
+    return min(max(seconds, POLL_SECONDS), IDLE_SECONDS)
+
+
+async def _loop(stop: asyncio.Event, new_jobs: asyncio.Event, http: httpx.AsyncClient) -> None:
     while not stop.is_set():
+        # Cleared before looking, so a job committed after the look still wakes the wait below.
+        new_jobs.clear()
         try:
             busy = await run_once(SessionLocal, http)
+            wait = 0 if busy else await idle_seconds(SessionLocal)
         except Exception:
             log.exception("Worker loop error (database down?)")
-            busy = False
-        if not busy:
-            try:
-                await asyncio.wait_for(stop.wait(), timeout=POLL_SECONDS)
-            except TimeoutError:
-                pass
+            wait = POLL_SECONDS
+        if wait:
+            woken = asyncio.ensure_future(new_jobs.wait())
+            stopped = asyncio.ensure_future(stop.wait())
+            await asyncio.wait({woken, stopped}, timeout=wait, return_when=asyncio.FIRST_COMPLETED)
+            woken.cancel()
+            stopped.cancel()
 
 
 @asynccontextmanager
 async def running_workers():
     """Start the worker loops for as long as the `async with` block lasts."""
+    global _new_jobs
     stop = asyncio.Event()
+    _new_jobs = asyncio.Event()
     async with fetch.make_client() as http:
-        tasks = [asyncio.create_task(_loop(stop, http)) for _ in range(CONCURRENCY)]
+        tasks = [asyncio.create_task(_loop(stop, _new_jobs, http)) for _ in range(CONCURRENCY)]
         log.info("Started %s job worker loops", CONCURRENCY)
         try:
             yield
@@ -506,3 +558,4 @@ async def running_workers():
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            _new_jobs = None

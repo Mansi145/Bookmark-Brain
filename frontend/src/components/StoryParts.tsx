@@ -49,12 +49,21 @@ function DeadLink({ bookmark }: { bookmark: Bookmark }) {
 
   return (
     <>
-      <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-dead-fg">
-        <StateIcon>{DEAD}</StateIcon>
-        <span className="font-semibold">
-          Page no longer available{bookmark.http_status ? ` (${bookmark.http_status})` : ''}.
+      <p className="m-0 flex items-start gap-2 text-sm text-dead-fg">
+        <span className="flex h-[1.5em] flex-none items-center">
+          <StateIcon>{DEAD}</StateIcon>
         </span>
-        {found && <ArchiveLink bookmark={bookmark} />}
+        <span className="min-w-0">
+          <span className="font-semibold">
+            Page no longer available{bookmark.http_status ? ` (${bookmark.http_status})` : ''}.
+          </span>
+          {found && (
+            <>
+              {' · '}
+              <ArchiveLink bookmark={bookmark} />
+            </>
+          )}
+        </span>
       </p>
 
       {state === null && (
@@ -82,9 +91,12 @@ function DeadLink({ bookmark }: { bookmark: Bookmark }) {
 
 function StateLine({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink2">
-      <StateIcon>{icon}</StateIcon>
-      <span className="font-medium">{children}</span>
+    <p className="m-0 flex items-start gap-2 text-sm text-ink2">
+      {/* The icon stays beside the text in narrow columns (Earlier's briefs); only the text wraps. */}
+      <span className="flex h-[1.5em] flex-none items-center">
+        <StateIcon>{icon}</StateIcon>
+      </span>
+      <span className="min-w-0 font-medium">{children}</span>
     </p>
   )
 }

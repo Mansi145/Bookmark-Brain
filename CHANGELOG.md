@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - After a sync, your newest 30 bookmarks are summarised without a click, so the front page fills in by itself (within the daily limit).
 - Ask answers in a few seconds instead of about a minute.
 - Sidebar sections fold from their headings, and stay folded on that device.
+- The feed's count line says when a browser last synced, and dead links say when they were last checked.
+- Settings shows how many bookmarks are synced.
+
+### Fixed
+
+- The account button shows your initial when your profile picture won't load.
+- Key points in the detail panel have bullets, and its site line no longer cuts off the folder and browser.
+- "Couldn't read this page" and dead-link lines keep their icon beside the text in narrow columns.
+- How it works no longer says how a search result matched.
 
 ## [0.3.0] - 2026-11-03
 

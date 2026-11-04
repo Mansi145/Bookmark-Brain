@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Tag, TagBulkResult } from '../api/types'
 import { useSelection } from '../lib/selection'
@@ -25,7 +25,7 @@ export function SelectCheckbox({ id, title }: { id: number; title: string }) {
     >
       <span
         aria-hidden
-        className={`grid size-[22px] place-items-center rounded-md border ${checked ? 'border-ink bg-ink text-on-ink' : 'border-line bg-surface'}`}
+        className={`grid size-[22px] place-items-center rounded-md border-2 ${checked ? 'border-ink bg-ink text-on-ink' : 'border-ink2 bg-surface'}`}
       >
         {checked && (
           <svg
@@ -75,9 +75,9 @@ export function SelectBar({ selected, onDone }: { selected: Set<number>; onDone:
   })
 
   const outline =
-    'flex h-10 cursor-pointer items-center rounded-full border border-line bg-surface px-4 text-sm font-medium text-ink disabled:cursor-default disabled:opacity-50'
+    'flex h-10 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-4 text-sm font-medium text-ink disabled:cursor-default disabled:opacity-50'
   return (
-    <div className="sticky top-0 z-10 -mx-1 mb-[22px] flex flex-col gap-2 rounded-xl bg-panel px-1 py-2">
+    <div className="sticky top-3 z-10 mb-[22px] flex flex-col gap-2 rounded-[14px] border border-line bg-surface py-2 pr-2 pl-4 shadow-[0_10px_30px_rgba(0,0,0,0.10)]">
       <div className="flex flex-wrap items-center gap-2">
         <span className="mr-1 text-sm font-semibold" aria-live="polite">
           {selected.size} selected
@@ -91,6 +91,18 @@ export function SelectBar({ selected, onDone }: { selected: Set<number>; onDone:
               onClick={() => setPicker(picker === action ? null : action)}
               className={outline}
             >
+              <svg
+                aria-hidden
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              >
+                {action === 'add' ? <path d="M12 5v14M5 12h14" /> : <path d="M5 12h14" />}
+              </svg>
               {action === 'add' ? 'Add tag' : 'Remove tag'}
             </button>
             {picker === action && (
@@ -151,9 +163,16 @@ function TagPicker(props: { canCreate: boolean; onPick: (tag: Tag | string) => v
     }
   }, [])
 
+  const [active, setActive] = useState(0)
+  const listId = useId()
   const typed = text.trim().replace(/\s+/g, ' ')
   const matching = (all.data ?? []).filter((t) => t.name.toLowerCase().includes(typed.toLowerCase()))
   const exists = (all.data ?? []).some((t) => t.name.toLowerCase() === typed.toLowerCase())
+  // The highlighted option (the first, to start with) is what Enter picks.
+  const options: { key: string; pick: Tag | string; label: string; count?: number }[] = [
+    ...matching.map((tag) => ({ key: String(tag.id), pick: tag, label: tag.name, count: tag.count })),
+    ...(props.canCreate && typed && !exists ? [{ key: 'new', pick: typed, label: `+ Create tag “${typed}”` }] : []),
+  ]
   return (
     <div
       ref={box}
@@ -161,37 +180,43 @@ function TagPicker(props: { canCreate: boolean; onPick: (tag: Tag | string) => v
     >
       <input
         autoFocus
+        role="combobox"
         aria-label={props.canCreate ? 'Find or create a tag' : 'Find a tag'}
+        aria-expanded={options.length > 0}
+        aria-controls={listId}
+        aria-activedescendant={options[active] && `${listId}-${options[active].key}`}
         placeholder={props.canCreate ? 'Find or create a tag' : 'Find a tag'}
         value={text}
         maxLength={MAX_TAG_NAME}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value)
+          setActive(0)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') setActive((a) => Math.min(a + 1, options.length - 1))
+          else if (e.key === 'ArrowUp') setActive((a) => Math.max(a - 1, 0))
+          else if (e.key === 'Enter' && options[active]) props.onPick(options[active].pick)
+          else return
+          e.preventDefault()
+        }}
         className="h-10 rounded-[10px] border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted"
       />
-      <ul className="m-0 flex max-h-[240px] list-none flex-col overflow-auto p-0">
-        {matching.map((tag) => (
-          <li key={tag.id}>
-            <button
-              type="button"
-              onClick={() => props.onPick(tag)}
-              className="flex min-h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border-0 bg-transparent px-2.5 text-left text-sm text-ink hover:bg-line"
-            >
-              <span className="truncate">{tag.name}</span>
-              <span className="text-xs text-muted">{tag.count}</span>
-            </button>
+      <ul id={listId} role="listbox" className="m-0 flex max-h-[240px] list-none flex-col overflow-auto p-0">
+        {options.map((option, i) => (
+          <li
+            key={option.key}
+            id={`${listId}-${option.key}`}
+            role="option"
+            aria-selected={i === active}
+            onMouseEnter={() => setActive(i)}
+            onMouseDown={(e) => e.preventDefault()} // keep focus in the input
+            onClick={() => props.onPick(option.pick)}
+            className={`flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-lg px-2.5 text-sm text-ink ${i === active ? 'bg-line' : ''}`}
+          >
+            <span className="truncate">{option.label}</span>
+            {option.count !== undefined && <span className="text-xs text-muted">{option.count}</span>}
           </li>
         ))}
-        {props.canCreate && typed && !exists && (
-          <li>
-            <button
-              type="button"
-              onClick={() => props.onPick(typed)}
-              className="flex min-h-9 w-full cursor-pointer items-center rounded-lg border-0 bg-transparent px-2.5 text-left text-sm text-ink hover:bg-line"
-            >
-              + Create tag “{typed}”
-            </button>
-          </li>
-        )}
       </ul>
       {props.canCreate && <p className="m-0 text-xs text-muted">Bookmarks that already have 5 tags are skipped.</p>}
     </div>

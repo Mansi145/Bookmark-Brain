@@ -134,6 +134,7 @@ class BookmarkOut(ORMModel):
     archive_url: str | None  # Wayback Machine copy, if there is one
     archived_on: datetime | None
     access: str | None  # "login" | "paywall" | None (open)
+    checked_at: datetime | None  # when the page was last fetched (dead links: "checked 2d ago")
     # The on-demand AI summary (shared by everyone who saved this URL). Where it came from
     # is stored but deliberately not sent: all summaries look the same (owner's decision).
     description: str | None  # the site's own description, shown when there's no summary
@@ -184,6 +185,10 @@ class FacetsOut(BaseModel):
     folders: list[FacetCount]
     browsers: list[FacetCount]
     tags: list[TagCount]  # every tag in use (on any of the user's bookmarks), counted here
+    # The most recent sync by any connected browser ("synced from Chrome 2 min ago"); None if
+    # no browser has synced yet. The browser is None when the token's name doesn't say.
+    last_synced_at: datetime | None = None
+    last_synced_from: str | None = None
 
 
 class ArrivedBookmark(BaseModel):

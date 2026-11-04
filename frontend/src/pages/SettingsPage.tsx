@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api, API_URL } from '../api/client'
-import type { ApiToken, CreatedApiToken } from '../api/types'
+import type { Account, ApiToken, CreatedApiToken } from '../api/types'
 import AccountSettings from '../components/AccountSettings'
 import { useMe } from '../hooks/useMe'
 
@@ -24,6 +24,8 @@ export default function SettingsPage() {
   const [created, setCreated] = useState<CreatedApiToken | null>(null)
 
   const tokens = useQuery({ queryKey: ['tokens'], queryFn: () => api.get<ApiToken[]>('/api/tokens') })
+  // "· 272 bookmarks synced" (same query as the delete dialog's counts).
+  const account = useQuery({ queryKey: ['account'], queryFn: () => api.get<Account>('/api/account') })
 
   const create = useMutation({
     mutationFn: () => api.post<CreatedApiToken>('/api/tokens', { name }),
@@ -61,6 +63,8 @@ export default function SettingsPage() {
           {tokens.data && (
             <p className="mt-2 text-sm text-ink2">
               {connected} {connected === 1 ? 'browser' : 'browsers'} connected
+              {account.data &&
+                ` · ${account.data.bookmarks} ${account.data.bookmarks === 1 ? 'bookmark' : 'bookmarks'} synced`}
             </p>
           )}
         </div>

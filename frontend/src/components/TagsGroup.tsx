@@ -83,6 +83,12 @@ export default function TagsGroup({ inUse }: { inUse: TagCount[] }) {
       )}
       <ul className="m-0 flex list-none flex-col gap-0.5 p-0">{shown.map(row)}</ul>
 
+      {showUnused && unused.length > 0 && (
+        <>
+          <p className="m-0 mt-2.5 mb-1 px-1 text-xs font-semibold text-muted">Unused</p>
+          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">{unused.map(row)}</ul>
+        </>
+      )}
       <div className="mt-1 flex flex-wrap gap-x-3 px-1">
         {inUse.length > FIRST && (
           <LinkButton onClick={() => setShowAll(!showAll)}>
@@ -95,12 +101,6 @@ export default function TagsGroup({ inUse }: { inUse: TagCount[] }) {
           </LinkButton>
         )}
       </div>
-      {showUnused && unused.length > 0 && (
-        <>
-          <p className="m-0 mt-2.5 mb-1 px-1 text-xs font-semibold text-muted">Unused</p>
-          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">{unused.map(row)}</ul>
-        </>
-      )}
 
       {dialog?.kind === 'merge' && (
         <MergeDialog
@@ -178,9 +178,9 @@ function TagRow(props: {
         <TagMenu
           onClose={() => setMenu(false)}
           items={[
-            { label: 'Rename', run: props.onRename },
-            { label: 'Merge into another tag…', run: props.onMerge },
-            { label: 'Delete tag', run: props.onDelete, danger: true },
+            { label: 'Rename', icon: PENCIL, run: props.onRename },
+            { label: 'Merge into another tag…', icon: MERGE, run: props.onMerge },
+            { label: 'Delete tag', icon: BIN, run: props.onDelete, danger: true },
           ]}
         />
       )}
@@ -189,7 +189,10 @@ function TagRow(props: {
 }
 
 /** The ⋯ menu (board FeedTagMenu): closes on Escape, a click outside or a choice. */
-function TagMenu(props: { items: { label: string; run: () => void; danger?: boolean }[]; onClose: () => void }) {
+function TagMenu(props: {
+  items: { label: string; icon: React.ReactNode; run: () => void; danger?: boolean }[]
+  onClose: () => void
+}) {
   const menu = useRef<HTMLDivElement>(null)
   const onClose = useRef(props.onClose)
   useEffect(() => {
@@ -222,8 +225,22 @@ function TagMenu(props: { items: { label: string; run: () => void; danger?: bool
               props.onClose()
               item.run()
             }}
-            className={`flex h-10 w-full cursor-pointer items-center rounded-lg border-0 bg-transparent px-3 text-left text-sm hover:bg-skeleton ${item.danger ? 'font-medium text-dead-fg' : 'text-ink'}`}
+            className={`flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg border-0 bg-transparent px-3 text-left text-sm hover:bg-skeleton ${item.danger ? 'font-medium text-dead-fg' : 'text-ink'}`}
           >
+            <svg
+              aria-hidden
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`flex-none ${item.danger ? '' : 'text-ink2'}`}
+            >
+              {item.icon}
+            </svg>
             {item.label}
           </button>
         </div>
@@ -231,6 +248,23 @@ function TagMenu(props: { items: { label: string; run: () => void; danger?: bool
     </div>
   )
 }
+
+const PENCIL = <path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" />
+const MERGE = (
+  <>
+    <path d="M6 4v4a6 6 0 0 0 6 6h6" />
+    <path d="M6 20v-4" />
+    <path d="m15 11 3 3-3 3" />
+  </>
+)
+const BIN = (
+  <>
+    <path d="M4 7h16" />
+    <path d="M10 11v6M14 11v6" />
+    <path d="M6 7l1 13h10l1-13" />
+    <path d="M9 7V4h6v3" />
+  </>
+)
 
 const input =
   'h-9 w-full min-w-0 rounded-lg border border-line bg-surface px-2.5 text-sm text-ink placeholder:text-muted'

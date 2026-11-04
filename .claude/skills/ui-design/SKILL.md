@@ -137,7 +137,8 @@ newspaper front page at the end of this section ("Newspaper feed").
   sign-in** (needs an account: "Needs sign-in", or a subscription: "Subscribers only") and **Dead
   links** (links we can't fetch that no longer load on the internet, e.g. 404/410). Reading states
   are only Unread and Read (no "Archived").
-- **Sidebar** (220–260 px): Browsers and Folders (indented subfolders) with counts, per section;
+- **Sidebar** (220–260 px): Browsers and Folders (indented subfolders) with counts, per section,
+  every browser and folder in every section, 0 where the section has none (owner, 2026-11-04);
   in the Feed (and search) also **Tags** and **Collections** (see "Tags, collections and
   duplicates"). Selected item on `accent`, white text, weight 600. **Every section folds**
   (owner, 2026-11-03): its heading is a button (36 px, `aria-expanded`, `aria-controls`) with a
@@ -188,7 +189,8 @@ newspaper front page at the end of this section ("Newspaper feed").
   Summarise button; in its place a **"Find archived copy"** button (36 px, outlined, history icon)
   looks up the latest Wayback Machine snapshot only when clicked. States: working = `accent2` pill
   "Checking the Wayback Machine…"; found = "· Archived copy · 9 Jan 2019" link appended to the dead
-  line, and the **Summarise** button appears (summarises that copy); none = "No archived copy on the
+  line, and the **Summarise** button appears (summarises that copy) when the copy has readable text;
+  a copy with none, such as a PDF, gets no Summarise (owner, 2026-11-04); none = "No archived copy on the
   Wayback Machine." in `ink2`; failed = "Couldn't reach the Wayback Machine." + **Try again**.
   Nothing is fetched from archive.org automatically.
 - **Newspaper feed** (`Main`): Today / This week / Earlier are editions, each one `surface` sheet with a
