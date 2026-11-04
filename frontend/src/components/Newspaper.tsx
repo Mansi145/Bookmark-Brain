@@ -8,6 +8,8 @@ import { canSummarise } from '../lib/summaries'
 import Marked from './Marked'
 import SiteIcon from './SiteIcon'
 import { PageState } from './StoryParts'
+import { SelectCheckbox } from './SelectMode'
+import TagLine from './TagLine'
 import { OpenSummary, SummariseAction } from './Summarise'
 
 // The feed as a classic newspaper front page (design boards NewsClassic and Main). Today /
@@ -255,7 +257,14 @@ function Chevron({ back = false }: { back?: boolean }) {
  * Needs sign-in or Dead links (design boards FeedSignIn / FeedDead): one sheet with a small
  * masthead, then standard stories in ruled rows of three, each with its state line.
  */
-export function SectionSheet(props: { title: string; line: string; count: number; items: Bookmark[] }) {
+export function SectionSheet(props: {
+  title: string
+  line: string
+  count: number
+  items: Bookmark[]
+  columns?: 2 | 3 // tag results: 2 (board FeedTags)
+}) {
+  const columns = props.columns ?? 3
   return (
     <section aria-label={props.title} className={SHEET}>
       <Masthead
@@ -263,8 +272,8 @@ export function SectionSheet(props: { title: string; line: string; count: number
         title={props.title}
         right={`${props.count} ${props.count === 1 ? 'bookmark' : 'bookmarks'}`}
       />
-      {chunks(props.items, 3).map((row, i) => (
-        <Row key={row[0].id} columns={3} first={i === 0}>
+      {chunks(props.items, columns).map((row, i) => (
+        <Row key={row[0].id} columns={columns} first={i === 0}>
           {row.map((b) => (
             <Story key={b.id} bookmark={b} size="standard" faded={b.read_state === 'read'} leaving={false} />
           ))}
@@ -354,7 +363,11 @@ export function Row(props: {
   children: React.ReactNode[]
 }) {
   const { columns, first = false, rule = 'ink', children } = props
-  const grid = { 2: 'wide:grid-cols-2', 3: 'wide:grid-cols-3', 4: 'wide:grid-cols-4' }[columns]
+  const grid = {
+    2: 'wide:grid-cols-2',
+    3: 'wide:grid-cols-3',
+    4: 'wide:grid-cols-4',
+  }[columns]
   const above = first ? '' : `mt-[22px] border-t pt-5 ${rule === 'ink' ? 'border-ink' : 'border-line'}`
   return (
     <div className={`grid wide:gap-y-[22px] ${grid} ${above}`}>
@@ -426,6 +439,7 @@ export function Story(props: {
       aria-hidden={props.leaving || undefined}
       className={`flex min-w-0 flex-col ${size === 'lead' ? 'gap-3' : 'gap-2'} ${props.faded ? 'opacity-70' : ''} ${props.leaving ? 'origin-top animate-leave motion-reduce:hidden' : ''}`}
     >
+      <SelectCheckbox id={bookmark.id} title={bookmark.title} />
       {size === 'lead' && <LeadImage bookmark={bookmark} />}
       {/* Where it's from comes first (owner): site logo, site, read time, age. */}
       <span className={`flex min-w-0 items-center gap-2 text-ink2 ${small ? 'text-xs' : 'text-[13px]'}`}>
@@ -443,6 +457,7 @@ export function Story(props: {
           {bookmark.title}
         </Link>
       </h3>
+      <TagLine tags={bookmark.tags} small={small} />
 
       {/* Fetching, couldn't read, needs sign-in, dead link (board Story states). */}
       <PageState bookmark={bookmark} />
