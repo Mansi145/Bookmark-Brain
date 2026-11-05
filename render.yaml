@@ -6,6 +6,7 @@ services:
     name: bookmark-brain-api # → https://bookmark-brain-api.onrender.com (frontend/vercel.json)
     runtime: python
     plan: free
+    region: singapore # same region as the Neon database (AWS Asia Pacific, Singapore)
     rootDir: backend
     branch: development
     buildCommand: pip install uv && uv sync --frozen --no-dev

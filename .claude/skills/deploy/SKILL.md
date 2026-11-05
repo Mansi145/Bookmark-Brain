@@ -21,6 +21,12 @@ blocks. The frontend's production build calls `/api/…` on its own address (`ap
 extension uses its token, not a cookie, so it calls Render directly.
 
 ## Neon (database)
+**Done (2026-11-05):** project `bookmark-brain` in the owner's org, region AWS Asia Pacific
+(Singapore), so Render is in Singapore too (`render.yaml`). Postgres 18 with pgvector 0.8; migrated
+to 0013. It was created with the Neon CLI (`neon init`), which wrote the project link to `.neon`
+and the addresses to the repo root's `.env.local` (both git-ignored): `DATABASE_URL_UNPOOLED` is
+the direct one to use. Local dev and tests still use docker-compose (Postgres 16).
+
 1. Create a project (free plan). pgvector: the first migration runs `CREATE EXTENSION vector`.
 2. Copy the connection string **as Neon shows it** (`postgresql://…?sslmode=require&channel_binding=require`);
    `config.py` turns it into an asyncpg URL. Use the **direct** (non-pooled) one for both the app and
@@ -28,6 +34,8 @@ extension uses its token, not a cookie, so it calls Render directly.
    few connections.
 3. Run migrations from your machine **before** deploying code that needs them:
    `DATABASE_URL='<neon url>' uv run alembic upgrade head` (keep the URL out of shell history and chat).
+   From `backend/`, without the URL appearing anywhere:
+   `DATABASE_URL="$(grep '^DATABASE_URL_UNPOOLED=' ../.env.local | cut -d= -f2- | tr -d '"')" uv run alembic upgrade head`
 4. Free compute hours count only while the database is awake, and it suspends after 5 idle minutes.
    The worker sleeps up to `IDLE_SECONDS` (30 min) when there's nothing to do, waking at once when
    the app queues a job (`worker.wake_on_commit`), so the database can suspend. `/health` doesn't
