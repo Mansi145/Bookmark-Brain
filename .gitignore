@@ -22,3 +22,4 @@ dist/
 
 # Eval questions about your own bookmarks (backend/scripts/eval_agent.py)
 backend/eval/questions.json
+.neon
